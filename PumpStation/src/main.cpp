@@ -32,7 +32,7 @@ const float PUMP_ML_PER_SEC = 2.0;
 // ========== 4. THE MUTEX & PUMP LOGIC ==========
 void startDosing(int pin, float ml, const char* pumpName) {
   if (isDosing) {
-    Serial.println("⚠️ MUTEX LOCK: A pump is already running. Command rejected to prevent chemical crash.");
+    Serial.println("MUTEX LOCK: A pump is already running. Command rejected to prevent chemical crash.");
     return;
   }
 
@@ -56,7 +56,7 @@ void checkPumpTimers() {
   if (isDosing && millis() >= doseEndTime) {
     digitalWrite(activeRelayPin, LOW);
     isDosing = false;
-    Serial.println("🛑 Pump OFF. System ready for next command.");
+    Serial.println("Pump OFF. System ready for next command.");
   }
 }
 
@@ -75,7 +75,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   DeserializationError error = deserializeJson(doc, message);
   
   if (error) {
-    Serial.println("❌ Failed to parse command JSON.");
+    Serial.println("Failed to parse command JSON.");
     return;
   }
 
@@ -99,7 +99,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     startDosing(RELAY_WATER, ml, "Fresh Water");
   }
   else {
-    Serial.println("⚠️ Unknown command received.");
+    Serial.println("Unknown command received.");
   }
 }
 
@@ -109,15 +109,15 @@ void setup_wifi() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
   }
-  Serial.println("\n✅ Pump Node Wi-Fi connected!");
+  Serial.println("\nPump Node Wi-Fi connected!");
 }
 
 void reconnect() {
   while (!client.connected()) {
     if (client.connect("ESP32_PumpNode_01")) {
-      Serial.println("✅ Connected to MQTT Broker!");
+      Serial.println("Connected to MQTT Broker!");
       client.subscribe(TOPIC_COMMANDS); 
-      Serial.println("📡 Listening for Brain Commands...");
+      Serial.println("Listening for Brain Commands...");
     } else {
       delay(5000);
     }

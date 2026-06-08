@@ -1,0 +1,10 @@
+{
+  "vsmqtt.brokerProfiles": [
+    {
+      "name": "KVN",
+      "host": "mqtt://test.mosquitto.org",
+      "port": 1883,
+      "clientId": "vsmqtt_client_b145"
+    }
+  ]
+}

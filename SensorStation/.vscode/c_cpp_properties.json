@@ -8,11 +8,11 @@
         {
             "name": "PlatformIO",
             "includePath": [
-                "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_Edge_Node/include",
-                "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_Edge_Node/src",
+                "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_System/SensorStation/include",
+                "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_System/SensorStation/src",
                 "C:/Users/kevin/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
-                "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_Edge_Node/.pio/libdeps/esp32dev/ArduinoJson/src",
-                "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_Edge_Node/.pio/libdeps/esp32dev/PubSubClient/src",
+                "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_System/SensorStation/.pio/libdeps/esp32dev/ArduinoJson/src",
+                "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_System/SensorStation/.pio/libdeps/esp32dev/PubSubClient/src",
                 "C:/Users/kevin/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/newlib/platform_include",
                 "C:/Users/kevin/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include",
                 "C:/Users/kevin/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include/esp_additions/freertos",
@@ -246,11 +246,11 @@
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,
                 "path": [
-                    "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_Edge_Node/include",
-                    "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_Edge_Node/src",
+                    "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_System/SensorStation/include",
+                    "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_System/SensorStation/src",
                     "C:/Users/kevin/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
-                    "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_Edge_Node/.pio/libdeps/esp32dev/ArduinoJson/src",
-                    "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_Edge_Node/.pio/libdeps/esp32dev/PubSubClient/src",
+                    "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_System/SensorStation/.pio/libdeps/esp32dev/ArduinoJson/src",
+                    "c:/Users/kevin/Documents/PlatformIO/Projects/DWC_System/SensorStation/.pio/libdeps/esp32dev/PubSubClient/src",
                     "C:/Users/kevin/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/newlib/platform_include",
                     "C:/Users/kevin/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include",
                     "C:/Users/kevin/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include/esp_additions/freertos",
