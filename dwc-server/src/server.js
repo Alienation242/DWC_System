@@ -4,6 +4,7 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 const { PrismaClient } = require("@prisma/client");
 const MqttService = require("./services/mqttService");
+const CalibrationService = require("./services/calibrationService");
 const RecipeEngine = require("./services/recipeEngine");
 
 const app = express();
@@ -13,6 +14,9 @@ const prisma = new PrismaClient();
 app.use(cors());
 app.use(express.json());
 
+// ==========================================
+// AUTO-SEED: creates SystemState & WatchdogConfigs if missing
+// ==========================================
 async function autoSeed() {
   console.log("🔍 Checking database state...");
 
@@ -23,7 +27,7 @@ async function autoSeed() {
     state = await prisma.systemState.create({
       data: {
         currentStrain: "auto_kush",
-        currentProfilePath: "./recipes/default.json",
+        currentProfilePath: "src/recipes/default.json",
         currentDay: 1,
         automationMode: "AUTOMATED",
         sysVol: 18.0,
@@ -61,6 +65,43 @@ async function autoSeed() {
   console.log("✅ Database ready.");
   return state;
 }
+
+// ==========================================
+// CALIBRATION API
+// ==========================================
+app.get("/api/calibration", async (req, res) => {
+  try {
+    const cal = await CalibrationService.load();
+    res.json(cal);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/calibration", async (req, res) => {
+  try {
+    const { pH, EC } = req.body;
+    const current = await CalibrationService.load();
+    if (pH) {
+      current.pH = {
+        ...current.pH,
+        ...pH,
+        lastCalibration: new Date().toISOString(),
+      };
+    }
+    if (EC) {
+      current.EC = {
+        ...current.EC,
+        ...EC,
+        lastCalibration: new Date().toISOString(),
+      };
+    }
+    await CalibrationService.save(current);
+    res.json(current);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ------------------ Watchdog API ------------------
 app.get("/api/watchdog/config", async (req, res) => {
@@ -101,9 +142,8 @@ app.post("/api/system/override", async (req, res) => {
   res.json({ automationMode: state.automationMode });
 });
 
-// 1. Initialize WebSockets for the future Dashboard
+// ------------------ WebSockets ------------------
 const io = new Server(server, { cors: { origin: "*" } });
-
 io.on("connection", (socket) => {
   console.log(`💻 Dashboard Client Connected: ${socket.id}`);
   socket.on("disconnect", () =>
@@ -111,20 +151,17 @@ io.on("connection", (socket) => {
   );
 });
 
-// 2. Boot the Hardware Communication Layer
+// ------------------ MQTT & Engine ------------------
 const hardwareComms = new MqttService(io);
-
-// 3. Boot the Autonomous Brain
 const engine = new RecipeEngine(hardwareComms);
 
-// --- THE CRON LOOP ---
+// ------------------ Cron Loop ------------------
 const TICK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-
 setInterval(async () => {
   await engine.executeTick();
 }, TICK_INTERVAL_MS);
 
-// Basic API Check
+// ------------------ Health Check ------------------
 app.get("/api/status", (req, res) => {
   res.json({
     status: "Online",
@@ -132,6 +169,7 @@ app.get("/api/status", (req, res) => {
   });
 });
 
+// ------------------ Start Server ------------------
 const PORT = process.env.PORT || 3000;
 
 autoSeed()

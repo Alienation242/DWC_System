@@ -13,6 +13,8 @@ model TelemetryLog {
   timestamp         DateTime @default(now())
   rawPH             Float
   rawEC             Float
+  realPH            Float    // calculated pH
+  realEC            Float    // calculated EC
   isTankEmpty       Boolean
   isTankOverflowing Boolean
 }

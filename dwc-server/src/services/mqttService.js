@@ -4,6 +4,17 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const MQTT_BROKER = "mqtt://test.mosquitto.org";
 const TOPIC_TELEMETRY = "kevin/dwc/sensor_node_1/telemetry";
+const CalibrationService = require("./calibrationService");
+
+// Same calibration as recipeEngine (keep in sync)
+const CALIBRATION = {
+  pH: { rawLow: 1093, realLow: 4.0, rawHigh: 1973, realHigh: 7.0 },
+  EC: { rawLow: 1305, realLow: 0.0, rawHigh: 2110, realHigh: 1000.0 },
+};
+
+function mapValue(x, in_min, in_max, out_min, out_max) {
+  return ((x - in_min) * (out_max - out_min)) / (in_max - in_min) + out_min;
+}
 
 class MqttService {
   constructor(io) {
@@ -27,20 +38,31 @@ class MqttService {
   async handleTelemetry(message) {
     try {
       const payload = JSON.parse(message.toString());
+      const realPH = await CalibrationService.convertPH(payload.rawPH);
+      const realEC = await CalibrationService.convertEC(payload.rawEC);
 
       const log = await prisma.telemetryLog.create({
         data: {
           rawPH: payload.rawPH,
           rawEC: payload.rawEC,
+          realPH: realPH, // add this field to schema
+          realEC: realEC, // add this field to schema
           isTankEmpty: payload.isTankEmpty || false,
           isTankOverflowing: payload.isTankOverflowing || false,
         },
       });
 
-      console.log(`Telemetry Logged: pH ${log.rawPH} | EC ${log.rawEC}`);
+      console.log(
+        `Telemetry Logged: pH ${realPH.toFixed(2)} | EC ${realEC.toFixed(0)} PPM`,
+      );
 
+      // Emit real values via WebSocket (dashboard can use these)
       if (this.io) {
-        this.io.emit("telemetry_update", payload);
+        this.io.emit("telemetry_update", {
+          ...payload,
+          realPH,
+          realEC,
+        });
       }
     } catch (error) {
       console.error("Failed to process telemetry:", error.message);

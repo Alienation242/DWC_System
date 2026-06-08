@@ -3,15 +3,11 @@ const prisma = new PrismaClient();
 const Watchdog = require("./watchdog");
 const fs = require("fs").promises;
 const path = require("path");
+const CalibrationService = require("./calibrationService");
 
 const TARGET_PH = 5.8;
 const CALMAG_PPM_PER_ML_L = 375.0;
 const BASE_PPM_PER_ML_L = 136.4;
-
-const CALIBRATION = {
-  pH: { rawLow: 1093, realLow: 4.0, rawHigh: 1973, realHigh: 7.0 },
-  EC: { rawLow: 1305, realLow: 0.0, rawHigh: 2110, realHigh: 1000.0 },
-};
 
 class RecipeEngine {
   constructor(mqttService) {
@@ -127,40 +123,41 @@ class RecipeEngine {
         return;
       }
 
+      // Wait for at least one telemetry record
+      const count = await prisma.telemetryLog.count();
+      if (count === 0) {
+        console.log("⏳ Waiting for first telemetry...");
+        return;
+      }
+
+      // Get latest telemetry for tank safety
+      const latestTele = await prisma.telemetryLog.findFirst({
+        orderBy: { timestamp: "desc" },
+      });
+      if (latestTele?.isTankEmpty) {
+        console.warn("⚠️ Reservoir empty! Skipping tick.");
+        return;
+      }
+
       const recentLogs = await prisma.telemetryLog.findMany({
         take: 5,
         orderBy: { timestamp: "desc" },
       });
-      if (recentLogs.length === 0) {
-        console.log("⚠️ No telemetry available.");
-        return;
-      }
 
       const avgRawPH =
         recentLogs.reduce((s, l) => s + l.rawPH, 0) / recentLogs.length;
       const avgRawEC =
         recentLogs.reduce((s, l) => s + l.rawEC, 0) / recentLogs.length;
 
-      const livePH = this.mapValue(
-        avgRawPH,
-        CALIBRATION.pH.rawLow,
-        CALIBRATION.pH.rawHigh,
-        CALIBRATION.pH.realLow,
-        CALIBRATION.pH.realHigh,
-      );
-      const livePPM = this.mapValue(
-        avgRawEC,
-        CALIBRATION.EC.rawLow,
-        CALIBRATION.EC.rawHigh,
-        CALIBRATION.EC.realLow,
-        CALIBRATION.EC.realHigh,
-      );
+      // Convert using CalibrationService (no manual clamping needed)
+      const livePH = await CalibrationService.convertPH(avgRawPH);
+      const livePPM = await CalibrationService.convertEC(avgRawEC);
 
       console.log(
-        `📊 Live | pH: ${livePH.toFixed(2)} | PPM: ${livePPM.toFixed(0)}`,
+        `📊 Live | pH: ${livePH.toFixed(2)} | PPM: ${Math.round(livePPM)}`,
       );
 
-      // Load strain profile from filesystem using path from DB
+      // Load strain profile
       const profilePath = path.join(process.cwd(), state.currentProfilePath);
       let strainData;
       try {
@@ -185,11 +182,6 @@ class RecipeEngine {
         `🎯 Target Protocol | Phase: ${bio.stage} | Target PPM: ${baseTarget.toFixed(0)}`,
       );
 
-      console.log(
-        `DEBUG: livePPM=${livePPM}, targetPPM=${targetPPM}, deficit=${targetPPM - livePPM}`,
-      );
-
-      // Use actual system volume from DB
       await this.evaluateAndDose(
         livePH,
         livePPM,
