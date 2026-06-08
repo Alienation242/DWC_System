@@ -161,7 +161,7 @@ class RecipeEngine {
       );
 
       // Load strain profile from filesystem using path from DB
-      const profilePath = path.resolve(__dirname, state.currentProfilePath);
+      const profilePath = path.join(process.cwd(), state.currentProfilePath);
       let strainData;
       try {
         const raw = await fs.readFile(profilePath, "utf8");
@@ -183,6 +183,10 @@ class RecipeEngine {
       const baseTarget = this.resolveCurve(bio.data.basePpm, bio.progress);
       console.log(
         `🎯 Target Protocol | Phase: ${bio.stage} | Target PPM: ${baseTarget.toFixed(0)}`,
+      );
+
+      console.log(
+        `DEBUG: livePPM=${livePPM}, targetPPM=${targetPPM}, deficit=${targetPPM - livePPM}`,
       );
 
       // Use actual system volume from DB
