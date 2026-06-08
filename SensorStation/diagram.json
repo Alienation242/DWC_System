@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "author": "DWC Sensor Node - Active 3-Wire Logic",
+  "editor": "Alienation",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-potentiometer",
+      "id": "ph_sensor",
+      "top": -150,
+      "left": -350,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "ec_sensor",
+      "top": 150,
+      "left": -350,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-slide-switch",
+      "id": "sensor_top",
+      "top": -150,
+      "left": 250,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "sensor_bottom",
+      "top": 150,
+      "left": 250,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    ["esp:TX", "$serialMonitor:RX", "", []],
+    ["esp:RX", "$serialMonitor:TX", "", []],
+
+    ["esp:3V3", "ph_sensor:VCC", "red", ["h-20", "v-140", "h-230"]],
+    ["esp:GND.1", "ph_sensor:GND", "black", ["h-30", "v-180", "h-220"]],
+    ["esp:34", "ph_sensor:SIG", "green", ["h-40", "v-100", "h-210"]],
+
+    ["esp:3V3", "ec_sensor:VCC", "red", ["h-20", "v160", "h-230"]],
+    ["esp:GND.1", "ec_sensor:GND", "black", ["h-30", "v120", "h-220"]],
+    ["esp:35", "ec_sensor:SIG", "yellow", ["h-40", "v200", "h-210"]],
+
+    ["esp:3V3", "sensor_top:1", "red", ["h20", "v-150", "h180"]],
+    ["esp:32", "sensor_top:2", "purple", ["h-60", "v-230", "h290"]],
+    ["esp:GND.2", "sensor_top:3", "black", ["h30", "v-110", "h150"]],
+
+    ["esp:3V3", "sensor_bottom:1", "red", ["h20", "v150", "h180"]],
+    ["esp:33", "sensor_bottom:2", "blue", ["h-60", "v270", "h290", "v-110"]],
+    ["esp:GND.2", "sensor_bottom:3", "black", ["h30", "v190", "h150"]]
+  ]
+}
