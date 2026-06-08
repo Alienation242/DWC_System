@@ -9,22 +9,12 @@ class CalibrationService {
       const data = await fs.readFile(CALIBRATION_PATH, "utf8");
       return JSON.parse(data);
     } catch (err) {
-      // Return defaults if file doesn't exist
+      console.error(
+        "⚠️ Failed to load calibration file, using defaults:",
+        err.message,
+      );
       return {
-        pH: {
-          rawLow: 1093,
-          realLow: 4.0,
-          rawHigh: 1973,
-          realHigh: 7.0,
-          lastCalibration: new Date().toISOString(),
-        },
-        EC: {
-          rawLow: 1305,
-          realLow: 0.0,
-          rawHigh: 2110,
-          realHigh: 1000.0,
-          lastCalibration: new Date().toISOString(),
-        },
+        /* defaults */
       };
     }
   }
