@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "author": "DWC Pump Node - 5 Pump Manifold",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 0,
+      "left": -250,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay_ph_down",
+      "top": -250,
+      "left": 100,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay_ph_up",
+      "top": -150,
+      "left": 100,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay_bloom",
+      "top": -50,
+      "left": 100,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay_micro",
+      "top": 50,
+      "left": 100,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay_water",
+      "top": 150,
+      "left": 100,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-led",
+      "id": "pump_ph_down",
+      "top": -250,
+      "left": 400,
+      "attrs": { "color": "red" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pump_ph_up",
+      "top": -150,
+      "left": 400,
+      "attrs": { "color": "blue" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pump_bloom",
+      "top": -50,
+      "left": 400,
+      "attrs": { "color": "magenta" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pump_micro",
+      "top": 50,
+      "left": 400,
+      "attrs": { "color": "orange" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pump_water",
+      "top": 150,
+      "left": 400,
+      "attrs": { "color": "white" }
+    },
+
+    {
+      "type": "wokwi-vcc",
+      "id": "pwr_12v",
+      "top": -300,
+      "left": 300,
+      "attrs": { "voltage": "12" }
+    },
+    {
+      "type": "wokwi-gnd",
+      "id": "gnd_12v",
+      "top": 250,
+      "left": 500,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    ["esp:TX", "$serialMonitor:RX", "", []],
+    ["esp:RX", "$serialMonitor:TX", "", []],
+
+    ["esp:5V", "relay_ph_down:VCC", "red", ["h40", "v-230"]],
+    ["esp:5V", "relay_ph_up:VCC", "red", ["h40", "v-130"]],
+    ["esp:5V", "relay_bloom:VCC", "red", ["h40", "v-30"]],
+    ["esp:5V", "relay_micro:VCC", "red", ["h40", "v70"]],
+    ["esp:5V", "relay_water:VCC", "red", ["h40", "v170"]],
+
+    ["esp:GND.2", "relay_ph_down:GND", "black", ["h60", "v-210"]],
+    ["esp:GND.2", "relay_ph_up:GND", "black", ["h60", "v-110"]],
+    ["esp:GND.2", "relay_bloom:GND", "black", ["h60", "v-10"]],
+    ["esp:GND.2", "relay_micro:GND", "black", ["h60", "v90"]],
+    ["esp:GND.2", "relay_water:GND", "black", ["h60", "v190"]],
+
+    ["esp:13", "relay_ph_down:IN", "green", ["h100", "v-300"]],
+    ["esp:14", "relay_ph_up:IN", "green", ["h110", "v-180"]],
+    ["esp:25", "relay_bloom:IN", "green", ["h120", "v-50"]],
+    ["esp:26", "relay_micro:IN", "green", ["h130", "v30"]],
+    ["esp:27", "relay_water:IN", "green", ["h140", "v110"]],
+
+    ["pwr_12v:VCC", "relay_ph_down:COM", "orange", ["v30"]],
+    ["pwr_12v:VCC", "relay_ph_up:COM", "orange", ["v130"]],
+    ["pwr_12v:VCC", "relay_bloom:COM", "orange", ["v230"]],
+    ["pwr_12v:VCC", "relay_micro:COM", "orange", ["v330"]],
+    ["pwr_12v:VCC", "relay_water:COM", "orange", ["v430"]],
+
+    ["relay_ph_down:NO", "pump_ph_down:A", "orange", []],
+    ["relay_ph_up:NO", "pump_ph_up:A", "orange", []],
+    ["relay_bloom:NO", "pump_bloom:A", "orange", []],
+    ["relay_micro:NO", "pump_micro:A", "orange", []],
+    ["relay_water:NO", "pump_water:A", "orange", []],
+
+    ["pump_ph_down:C", "gnd_12v:GND", "black", ["h20", "v480"]],
+    ["pump_ph_up:C", "gnd_12v:GND", "black", ["h20", "v380"]],
+    ["pump_bloom:C", "gnd_12v:GND", "black", ["h20", "v280"]],
+    ["pump_micro:C", "gnd_12v:GND", "black", ["h20", "v180"]],
+    ["pump_water:C", "gnd_12v:GND", "black", ["h20", "v80"]]
+  ]
+}
