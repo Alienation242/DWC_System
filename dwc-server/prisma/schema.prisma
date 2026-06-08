@@ -7,7 +7,7 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Logs raw telemetry from the ESP32 Sensor Nodes
+// Raw telemetry from ESP32 Sensor Node
 model TelemetryLog {
   id                Int      @id @default(autoincrement())
   timestamp         DateTime @default(now())
@@ -17,21 +17,33 @@ model TelemetryLog {
   isTankOverflowing Boolean
 }
 
-// Tracks the persistent execution state of the current cultivation cycle
+// Persistent cultivation cycle state
 model SystemState {
   id               Int      @id @default(1)
-  currentStrain    String   // e.g., "Blue Zushi"
+  currentStrain    String   @default("auto_kush")      // key for recipe
+  currentProfilePath String @default("./recipes/default.json")
   cycleStartDate   DateTime @default(now())
   currentDay       Int      @default(1)
-  automationMode   String   @default("AUTOMATED") // "AUTOMATED" or "MANUAL_OVERRIDE"
+  automationMode   String   @default("AUTOMATED")      // or "MANUAL_OVERRIDE"
   lastDoseTime     DateTime?
+  sysVol           Float    @default(18.0)             // actual reservoir liters
 }
 
-// Logs every physical pump action for safety windowing and tracking
-model DosingLog {
+// Every successful or blocked dose (watchdog uses this)
+model DoseLog {
   id        Int      @id @default(autoincrement())
   timestamp DateTime @default(now())
-  pumpName  String   // e.g., "pH_Down", "Bloom"
-  amountMl  Float
-  status    String   // "SUCCESS", "BLOCKED_BY_WATCHDOG", "FAILED"
+  pumpName  String   // "pH_Down", "Micro", "Bloom", "CalMag", "Gro", "Finisher"
+  ml        Float
+  status    String   @default("SUCCESS") // "SUCCESS", "BLOCKED"
+}
+
+// Watchdog configuration per pump
+model WatchdogConfig {
+  id            Int      @id @default(autoincrement())
+  pumpName      String   @unique
+  dailyLimitMl  Float    @default(15.0)
+  cooldownSecs  Int      @default(30)
+  enabled       Boolean  @default(true)
+  updatedAt     DateTime @updatedAt
 }

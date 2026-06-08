@@ -1,0 +1,45 @@
+{
+  "name": "Standard Hybrid",
+  "flipWeek": 6,
+  "stretchWks": 2,
+  "bulkWks": 6,
+  "ripenWks": 2,
+  "phases": {
+    "veg": {
+      "ppfd": { "start": 250, "end": 550, "curve": 1.0 },
+      "temp": { "start": 24, "end": 26, "curve": 1.0 },
+      "rh": { "start": 70, "end": 60, "curve": 1.0 },
+      "basePpm": { "start": 50, "end": 500, "curve": 1.5 },
+      "lightMult": { "start": 0.5, "end": 0.5, "curve": 1.0 },
+      "vpdMin": 0.8,
+      "vpdMax": 1.15
+    },
+    "initiation": {
+      "ppfd": { "start": 650, "end": 950, "curve": 1.0 },
+      "temp": { "start": 26, "end": 26, "curve": 1.0 },
+      "rh": { "start": 60, "end": 58, "curve": 1.0 },
+      "basePpm": { "start": 500, "end": 750, "curve": 1.0 },
+      "lightMult": { "start": 0.5, "end": 0.5, "curve": 1.0 },
+      "vpdMin": 1.2,
+      "vpdMax": 1.5
+    },
+    "bulking": {
+      "ppfd": { "start": 950, "end": 1050, "curve": 1.0 },
+      "temp": { "start": 25, "end": 24, "curve": 1.0 },
+      "rh": { "start": 58, "end": 55, "curve": 1.0 },
+      "basePpm": { "start": 350, "end": 350, "curve": 1.0 },
+      "lightMult": { "start": 0.5, "end": 0.5, "curve": 1.0 },
+      "vpdMin": 1.05,
+      "vpdMax": 1.25
+    },
+    "ripening": {
+      "ppfd": { "start": 1050, "end": 800, "curve": 1.5 },
+      "temp": { "start": 24, "end": 22, "curve": 1.0 },
+      "rh": { "start": 55, "end": 45, "curve": 1.0 },
+      "basePpm": { "start": 650, "end": 650, "curve": 1.0 },
+      "lightMult": { "start": 0.5, "end": 0.5, "curve": 1.0 },
+      "vpdMin": 1.35,
+      "vpdMax": 1.6
+    }
+  }
+}
