@@ -9,7 +9,8 @@ const int RELAY_PH_DOWN  = 13;
 const int RELAY_PH_UP    = 14;
 const int RELAY_BLOOM    = 15;
 const int RELAY_MICRO    = 16;
-const int RELAY_WATER    = 17;
+const int RELAY_WATER    = 17; // Now used for the multiplexed Gro/Finisher swap
+const int RELAY_CALMAG   = 25; // NEW: CalMag Relay
 
 // Delivery Bank (Submersible & Solenoids)
 const int RELAY_SUB_PUMP = 18;
@@ -45,7 +46,7 @@ const unsigned long MAX_RUNTIME_MS = 300000;
 
 // ========== 4. HARDWARE LOGIC ==========
 void emergencyStop() {
-  const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO, RELAY_WATER, RELAY_SUB_PUMP, RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
+  const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO, RELAY_WATER, RELAY_CALMAG, RELAY_SUB_PUMP, RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
   for(int pin : allPins) {
     digitalWrite(pin, LOW);
   }
@@ -159,7 +160,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   else if (strcmp(action, "dose_ph_up") == 0) startDosing(RELAY_PH_UP, ml, "pH Up");
   else if (strcmp(action, "dose_bloom") == 0) startDosing(RELAY_BLOOM, ml, "Bloom");
   else if (strcmp(action, "dose_micro") == 0) startDosing(RELAY_MICRO, ml, "Micro");
-  else if (strcmp(action, "fill_tank") == 0) startDosing(RELAY_WATER, ml, "Fresh Water");
+  else if (strcmp(action, "dose_calmag") == 0) startDosing(RELAY_CALMAG, ml, "CalMag"); 
+  else if (strcmp(action, "dose_gro_fin_relay") == 0) startDosing(RELAY_WATER, ml, "Gro/Finisher"); // The Multiplexed Relay
   else if (strcmp(action, "deliver") == 0) {
     const char* target = doc["target"] | "Unknown";
     startDelivery(target, ml);
@@ -194,8 +196,7 @@ void reconnect() {
 void setup() {
   Serial.begin(115200);
   
-  // Initialize all relay pins to OUTPUT and forcefully set them LOW (OFF) to prevent startup glitches
-  const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO, RELAY_WATER, RELAY_SUB_PUMP, RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
+  const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO, RELAY_WATER, RELAY_CALMAG, RELAY_SUB_PUMP, RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
   for(int pin : allPins) {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
