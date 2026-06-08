@@ -1,91 +1,88 @@
 const mqtt = require("mqtt");
 const client = mqtt.connect("mqtt://test.mosquitto.org");
 
-// 1. Decoupled Network Routing
-const SENSOR_TOPIC = "kevin/dwc/sensor_node_1/telemetry";
 const PUMP_TOPIC = "kevin/dwc/pump_node_1/commands";
+const PUMP_STATUS_TOPIC = "kevin/dwc/pump_node_1/status";
+const SENSOR_WILDCARD = "kevin/dwc/+/telemetry";
+
+// --- THE BRAIN'S STATE MACHINE ---
+let hardwareStatus = "idle"; // Tracks the physical pump station ("idle" or "busy")
+let currentBatchStep = 0; // 0=None, 1=Filling, 2=Delivering
+let activeTargetPot = null;
 
 client.on("connect", () => {
-  console.log("✅ Brain Server Online & Connected to MQTT");
-  client.subscribe(SENSOR_TOPIC, (err) => {
-    if (!err) console.log(`📡 Listening for telemetry on: ${SENSOR_TOPIC}`);
-  });
+  console.log("✅ Brain Server Online & Listening");
+  client.subscribe(SENSOR_WILDCARD);
+  client.subscribe(PUMP_STATUS_TOPIC); // NEW: Listening to the muscle!
 });
 
 client.on("message", (topic, message) => {
-  if (topic === SENSOR_TOPIC) {
-    try {
-      const data = JSON.parse(message.toString());
+  try {
+    const data = JSON.parse(message.toString());
 
-      // 2. Catch the raw values
-      const rawPH = data.rawPH;
-      const rawEC = data.rawEC;
-      const isTankEmpty = data.isTankEmpty;
-      const isTankOverflowing = data.isTankOverflowing;
+    // ==========================================
+    // 1. LISTEN TO THE PUMP STATION (Hardware Feedback)
+    // ==========================================
+    if (topic === PUMP_STATUS_TOPIC) {
+      hardwareStatus = data.status;
 
-      // 3. Convert raw signals to real-world units
-      const pH = (rawPH / 4095) * 14.0;
-      const EC = (rawEC / 4095) * 2500;
-
-      console.log("\n--- SYSTEM TELEMETRY ---");
-      console.log(`pH: ${pH.toFixed(2)}    EC: ${Math.round(EC)} µS/cm`);
-      console.log(
-        `Water Level: ${isTankEmpty ? "CRITICAL LOW" : isTankOverflowing ? "OVERFLOW DANGER" : "Normal"}`,
-      );
-
-      // HARDWARE SAFETY INTERLOCK
-      if (isTankEmpty) {
-        console.log(
-          "SAFETY TRIGGER: Tank is empty! Dosing suspended. Command refill.",
-        );
-        client.publish(
-          PUMP_TOPIC,
-          JSON.stringify({ action: "refill_water", ml: 1000 }),
-        );
-        return;
+      // If the hardware just finished a job and became idle, trigger the next step!
+      if (hardwareStatus === "idle" && activeTargetPot !== null) {
+        if (currentBatchStep === 1) {
+          console.log(`\n✅ [Seq 1 Complete] 5L Tank is Full.`);
+          console.log(
+            `🌊 [Seq 2] Routing 5L Batch to Pot ${activeTargetPot}...`,
+          );
+          currentBatchStep = 2;
+          client.publish(
+            PUMP_TOPIC,
+            JSON.stringify({
+              action: "deliver",
+              target: activeTargetPot,
+              ml: 5000,
+            }),
+          );
+        } else if (currentBatchStep === 2) {
+          console.log(
+            `\n✅ [Seq 2 Complete] Delivery to Pot ${activeTargetPot} finished.`,
+          );
+          console.log(`🌿 BATCH PROCESS COMPLETE. Manifold is now free.`);
+          // Reset the state machine
+          currentBatchStep = 0;
+          activeTargetPot = null;
+        }
       }
-      if (isTankOverflowing) {
-        console.log("SAFETY TRIGGER: Tank overflow risk! Halting all pumps.");
-        return;
-      }
-
-      // 5. AUTOMATED CONTROL LOGIC (EC First, pH Second)
-      const PH_TARGET = 5.8;
-      const PH_DEADBAND = 0.2;
-      const EC_TARGET = 1200;
-      const EC_DEADBAND = 100;
-
-      if (EC < EC_TARGET - EC_DEADBAND) {
-        console.log("  → EC too low, commanding Bloom pump");
-        client.publish(
-          PUMP_TOPIC,
-          JSON.stringify({ action: "dose_bloom", ml: 10 }),
-        );
-      } else if (EC > EC_TARGET + EC_DEADBAND) {
-        console.log("  → EC too high, commanding fresh water dilution");
-        client.publish(
-          PUMP_TOPIC,
-          JSON.stringify({ action: "dilute", ml: 200 }),
-        );
-      }
-      // Only adjust pH if EC is perfectly inside the deadband
-      else if (pH > PH_TARGET + PH_DEADBAND) {
-        console.log("  → pH too high, commanding pH Down pump");
-        client.publish(
-          PUMP_TOPIC,
-          JSON.stringify({ action: "dose_ph_down", ml: 5 }),
-        );
-      } else if (pH < PH_TARGET - PH_DEADBAND) {
-        console.log("  → pH too low, commanding pH Up pump");
-        client.publish(
-          PUMP_TOPIC,
-          JSON.stringify({ action: "dose_ph_up", ml: 5 }),
-        );
-      } else {
-        console.log("  → System Perfectly Balanced");
-      }
-    } catch (err) {
-      console.error("Parse error:", err.message);
+      return; // Stop processing this message
     }
+
+    // ==========================================
+    // 2. LISTEN TO THE POTS (Sensor Telemetry)
+    // ==========================================
+    if (topic.includes("telemetry")) {
+      const topicParts = topic.split("/");
+      const reportingNode = topicParts[2];
+      const potLetter = reportingNode.split("_").pop().toUpperCase();
+
+      // If the manifold is busy doing a batch, IGNORE all other telemetry requests
+      if (currentBatchStep !== 0) return;
+
+      // Start a new sequence ONLY if the hardware is idle and we aren't currently in a sequence
+      if (data.isTankEmpty && hardwareStatus === "idle") {
+        console.log(
+          `\n⚠️ Pot ${potLetter} is EMPTY. Reserving Manifold and starting Batch Process!`,
+        );
+
+        activeTargetPot = potLetter;
+        currentBatchStep = 1;
+
+        console.log(`💧 [Seq 1] Filling 5L Mixing Tank with fresh water...`);
+        client.publish(
+          PUMP_TOPIC,
+          JSON.stringify({ action: "fill_tank", ml: 5000 }),
+        );
+      }
+    }
+  } catch (err) {
+    console.error("Parse error:", err.message);
   }
 });
