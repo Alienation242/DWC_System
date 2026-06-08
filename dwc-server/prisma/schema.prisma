@@ -1,0 +1,37 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Logs raw telemetry from the ESP32 Sensor Nodes
+model TelemetryLog {
+  id                Int      @id @default(autoincrement())
+  timestamp         DateTime @default(now())
+  rawPH             Float
+  rawEC             Float
+  isTankEmpty       Boolean
+  isTankOverflowing Boolean
+}
+
+// Tracks the persistent execution state of the current cultivation cycle
+model SystemState {
+  id               Int      @id @default(1)
+  currentStrain    String   // e.g., "Blue Zushi"
+  cycleStartDate   DateTime @default(now())
+  currentDay       Int      @default(1)
+  automationMode   String   @default("AUTOMATED") // "AUTOMATED" or "MANUAL_OVERRIDE"
+  lastDoseTime     DateTime?
+}
+
+// Logs every physical pump action for safety windowing and tracking
+model DosingLog {
+  id        Int      @id @default(autoincrement())
+  timestamp DateTime @default(now())
+  pumpName  String   // e.g., "pH_Down", "Bloom"
+  amountMl  Float
+  status    String   // "SUCCESS", "BLOCKED_BY_WATCHDOG", "FAILED"
+}
