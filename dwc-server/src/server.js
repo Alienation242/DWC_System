@@ -22,7 +22,21 @@ app.use(express.json());
 async function autoSeed() {
   console.log("🔍 Checking database state...");
 
-  // 1. SystemState (id = 1)
+  // Load system config for watchdog defaults
+  let systemConfig = {
+    watchdog: { defaultDailyLimitMl: {}, defaultCooldownSecs: 30 },
+  };
+  try {
+    const configPath = path.join(process.cwd(), "config", "system.json");
+    const raw = await fs.readFile(configPath, "utf8");
+    systemConfig = JSON.parse(raw);
+  } catch (err) {
+    console.warn(
+      "⚠️ Could not load system.json, using default watchdog limits",
+    );
+  }
+
+  // 1. SystemState
   let state = await prisma.systemState.findUnique({ where: { id: 1 } });
   if (!state) {
     console.log("🌱 SystemState missing – creating default...");
@@ -46,18 +60,23 @@ async function autoSeed() {
     "CalMag",
     "Gro",
     "Finisher",
+    "Water",
   ];
   for (const pump of requiredPumps) {
     const existing = await prisma.watchdogConfig.findUnique({
       where: { pumpName: pump },
     });
     if (!existing) {
-      console.log(`🌱 Creating WatchdogConfig for ${pump}...`);
+      const dailyLimit =
+        systemConfig.watchdog.defaultDailyLimitMl[pump] || 15.0;
+      console.log(
+        `🌱 Creating WatchdogConfig for ${pump} (limit ${dailyLimit}ml/day)...`,
+      );
       await prisma.watchdogConfig.create({
         data: {
           pumpName: pump,
-          dailyLimitMl: 15.0,
-          cooldownSecs: 30,
+          dailyLimitMl: dailyLimit,
+          cooldownSecs: systemConfig.watchdog.defaultCooldownSecs || 30,
           enabled: true,
         },
       });

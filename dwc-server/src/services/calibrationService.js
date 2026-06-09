@@ -13,8 +13,22 @@ class CalibrationService {
         "⚠️ Failed to load calibration file, using defaults:",
         err.message,
       );
+      // Return sensible defaults for 0-4095 ADC range
       return {
-        /* defaults */
+        pH: {
+          rawLow: 0,
+          realLow: 1.0,
+          rawHigh: 4095,
+          realHigh: 12.0,
+          lastCalibration: new Date().toISOString(),
+        },
+        EC: {
+          rawLow: 0,
+          realLow: 0.0,
+          rawHigh: 4095,
+          realHigh: 8000.0,
+          lastCalibration: new Date().toISOString(),
+        },
       };
     }
   }

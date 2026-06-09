@@ -1,0 +1,34 @@
+{
+  "ec": {
+    "deficitDeadbandPercent": 10,
+    "deficitDeadbandMin": 15,
+    "deficitDeadbandMax": 50,
+    "excessThresholdPercent": 20,
+    "excessThresholdMin": 100,
+    "maxDilutionPerTickLiters": 10
+  },
+  "ph": {
+    "deadband": 0.2,
+    "doseMl": 2.0,
+    "carrierWaterMl": 250
+  },
+  "mixing": {
+    "carrierFluid": "Water",
+    "carrierVolumeMl": 500,
+    "stirSeconds": 5,
+    "defaultTargetPot": "A"
+  },
+  "watchdog": {
+    "defaultDailyLimitMl": {
+      "pH_Down": 15,
+      "pH_Up": 15,
+      "Micro": 15,
+      "Bloom": 15,
+      "CalMag": 15,
+      "Gro": 15,
+      "Finisher": 15,
+      "Water": 5000
+    },
+    "defaultCooldownSecs": 30
+  }
+}

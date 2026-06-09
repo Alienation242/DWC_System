@@ -3,6 +3,11 @@ const prisma = new PrismaClient();
 const Watchdog = require("./watchdog");
 const fs = require("fs").promises;
 const path = require("path");
+const HARDWARE_CONFIG_PATH = path.join(
+  process.cwd(),
+  "config",
+  "hardware.json",
+);
 
 const TARGET_PH = 5.8;
 const CALMAG_PPM_PER_ML_L = 375.0;
@@ -15,6 +20,24 @@ const NUTRIENT_PROFILE_PATH = path.join(
   "nutrient_profile.json",
 );
 
+let hardwareConfig = null;
+
+async function loadHardwareConfig() {
+  if (hardwareConfig) return hardwareConfig;
+  try {
+    const data = await fs.readFile(HARDWARE_CONFIG_PATH, "utf8");
+    hardwareConfig = JSON.parse(data);
+    return hardwareConfig;
+  } catch {
+    console.warn("⚠️ Using default hardware config (2 ml/s)");
+    hardwareConfig = {
+      peristaltic_ml_per_sec: 2.0,
+      submersible_ml_per_sec: 50.0,
+      safety_buffer_ms: 30000,
+    };
+    return hardwareConfig;
+  }
+}
 class RecipeEngine {
   constructor(mqttService) {
     this.mqtt = mqttService;
@@ -195,20 +218,27 @@ class RecipeEngine {
   async executePumpAndWait(pumpName, actionStr, amountMl) {
     if (amountMl <= 0.5) return 0;
 
-    const safeMl = Math.min(15.0, amountMl);
+    let safeMl = amountMl;
+    if (pumpName !== "Water") {
+      safeMl = Math.min(15.0, amountMl);
+    }
 
     if (await Watchdog.isSafeToDose(pumpName, safeMl)) {
+      const hw = await loadHardwareConfig();
+      const expectedDurationMs = (safeMl / hw.peristaltic_ml_per_sec) * 1000;
+      const timeoutMs = expectedDurationMs + hw.safety_buffer_ms;
+
       console.log(
-        `⏳ Waiting for Manifold to lock ${pumpName} (${safeMl.toFixed(1)}ml)...`,
+        `⏳ Waiting for ${pumpName} (${safeMl.toFixed(1)}ml) - expected ${expectedDurationMs / 1000}s, timeout ${timeoutMs / 1000}s`,
       );
-      await this.mqtt.waitForIdle();
+      await this.mqtt.waitForIdle(timeoutMs);
       this.mqtt.sendCommand(actionStr, safeMl);
-      await this.mqtt.waitForIdle();
+      await this.mqtt.waitForIdle(timeoutMs);
       await Watchdog.logSuccessfulDose(pumpName, safeMl);
       return safeMl;
     } else {
       console.warn(`⚠️ Watchdog blocked ${pumpName} (${safeMl}ml)`);
-      return 0;
+      throw new Error(`Watchdog blocked ${pumpName}`);
     }
   }
 
@@ -239,7 +269,7 @@ class RecipeEngine {
           "⚠️ Failed to load nutrient_profile.json! Falling back to defaults.",
         );
         nutConfig = {
-          carrierFluid: "Fresh_Water",
+          carrierFluid: "Water",
           carrierVolumeMl: 500,
           mixingSequence: ["CalMag", "Micro", "Gro", "Bloom", "Finisher"],
         };
@@ -301,14 +331,14 @@ class RecipeEngine {
 
     if (livePH > TARGET_PH + 0.2) {
       console.log(`\n🚀 --- INITIATING pH DOWN BATCH ---`);
-      await this.executePumpAndWait("Fresh_Water", "dose_water", 250.0);
+      await this.executePumpAndWait("Water", "dose_water", 250.0);
       await this.executePumpAndWait("pH_Down", "dose_ph_down", 2.0);
       this.mqtt.sendCommand("deliver", 250.0 + 2.0, "A");
       await this.mqtt.waitForIdle();
       console.log(`✅ pH Correction Complete.`);
     } else if (livePH < TARGET_PH - 0.2) {
       console.log(`\n🚀 --- INITIATING pH UP BATCH ---`);
-      await this.executePumpAndWait("Fresh_Water", "dose_water", 250.0);
+      await this.executePumpAndWait("Water", "dose_water", 250.0);
       await this.executePumpAndWait("pH_Up", "dose_ph_up", 2.0);
       this.mqtt.sendCommand("deliver", 250.0 + 2.0, "A");
       await this.mqtt.waitForIdle();

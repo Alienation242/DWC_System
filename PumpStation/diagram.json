@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "author": "DWC Batch & Delivery Station - Corrected Relays",
-  "editor": "Alienation",
+  "author": "Alienation",
+  "editor": "wokwi",
   "parts": [
     {
       "type": "board-esp32-devkit-c-v4",
