@@ -44,7 +44,7 @@ async function autoSeed() {
       data: {
         currentStrain: "auto_kush",
         currentProfilePath: "src/recipes/default.json",
-        currentDay: 1,
+        currentDay: 50,
         automationMode: "AUTOMATED",
         sysVol: 18.0,
       },

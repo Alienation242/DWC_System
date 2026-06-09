@@ -1,0 +1,10 @@
+{
+  "vsmqtt.brokerProfiles": [
+    {
+      "name": "KVN",
+      "host": "localhost",
+      "port": 1883,
+      "clientId": "vsmqtt_client_1b22"
+    }
+  ]
+}
