@@ -59,7 +59,9 @@ class MqttService extends EventEmitter {
     try {
       const payload = JSON.parse(message.toString());
       this.hardwareStatus = payload.status;
-      this.emit("hardware_status", payload.status);
+
+      this.emit("hardware_status", payload);
+
       if (payload.status === "dose_complete") {
         this.emit("pump_message", {
           seq: payload.seq,
@@ -129,19 +131,28 @@ class MqttService extends EventEmitter {
     });
   }
 
-  waitForBusy(timeoutMs = 30000) {
+  waitForBusy(timeoutMs = 30000, expectedSeq = null) {
     return new Promise((resolve, reject) => {
       if (this.hardwareStatus === "busy") return resolve();
       const timeout = setTimeout(() => {
         cleanup();
         reject(new Error("TIMEOUT: Pump did not become busy"));
       }, timeoutMs);
-      const onStatusChange = (status) => {
+
+      const onStatusChange = (payload) => {
+        const status = typeof payload === "string" ? payload : payload.status;
+        const task = typeof payload === "string" ? null : payload.task;
+        const seq = typeof payload === "string" ? null : payload.seq;
+
         if (status === "busy") {
+          if (expectedSeq && task === "resumed_dosing" && seq !== expectedSeq) {
+            return;
+          }
           cleanup();
           resolve();
         }
       };
+
       const cleanup = () => {
         clearTimeout(timeout);
         this.removeListener("hardware_status", onStatusChange);
@@ -176,11 +187,12 @@ class MqttService extends EventEmitter {
     }
   }
 
-  sendCommand(action, ml = 0, target = "None") {
-    const seq = this.nextSeq();
+  sendCommand(action, ml = 0, target = "None", explicitSeq = null) {
+    const seq = explicitSeq !== null ? explicitSeq : this.nextSeq();
     const payload = JSON.stringify({ action, ml, target, seq });
     this.client.publish(TOPIC_PUMP_COMMANDS, payload);
     console.log(`📤 Command Sent [seq=${seq}]: ${payload}`);
+    return seq;
   }
 }
 

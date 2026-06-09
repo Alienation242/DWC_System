@@ -258,7 +258,7 @@ void setup() {
   }
 
   // Resume interrupted dose if any
-  if (pendingDosePin != -1 && pendingDoseDuration > 0) {
+ if (pendingDosePin != -1 && pendingDoseDuration > 0) {
     Serial.printf("🔁 Resuming interrupted dose: pin %d for %lu ms (%.1f ml) seq=%u\n", 
                   pendingDosePin, pendingDoseDuration, pendingDoseMl, pendingDoseSeq);
     isSystemBusy = true;
@@ -269,8 +269,15 @@ void setup() {
     currentDoseSeq = pendingDoseSeq;
     currentDoseRequestedMl = pendingDoseRequestedMl;
     digitalWrite(activeDosingPin, HIGH);
-    publishStatus("busy", "resumed_dosing");
-    // Clear pending so we don't resume again later
+    
+    JsonDocument doc;
+    doc["status"] = "busy";
+    doc["task"] = "resumed_dosing";
+    doc["seq"] = pendingDoseSeq; 
+    char buffer[100];
+    serializeJson(doc, buffer);
+    client.publish(TOPIC_STATUS, buffer);
+
     pendingDosePin = -1;
     pendingDoseDuration = 0;
   }

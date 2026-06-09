@@ -38,75 +38,6 @@ class RecipeEngine {
     });
   }
 
-  async executePumpAndWait(pumpName, actionStr, amountMl, batchId = null) {
-    if (amountMl <= 0.5) return 0;
-    const isWater = pumpName.toLowerCase().includes("water");
-    const safeMl = isWater ? amountMl : Math.min(15.0, amountMl);
-    const flowRate = 20.0; // from config
-
-    if (!(await Watchdog.isSafeToDose(pumpName, safeMl))) return 0;
-
-    console.log(`⏳ Locking Manifold: ${pumpName} (${safeMl.toFixed(1)}ml)...`);
-
-    let remainingMl = safeMl;
-    let retries = 0;
-    const MAX_RETRIES = 3;
-
-    while (remainingMl > 0.5 && retries < MAX_RETRIES) {
-      await this.mqtt.waitForDevice("pump_node_1");
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      const seq = this.mqtt.nextSeq();
-      const startTime = Date.now();
-
-      try {
-        this.mqtt.sendCommand(actionStr, remainingMl);
-        await this.mqtt.waitForBusy(10000);
-
-        const result = await Promise.race([
-          this.waitForDoseComplete(
-            seq,
-            2 * (remainingMl / flowRate) * 1000 + 10000,
-          ),
-          this.mqtt.waitForIdle().then(() => ({ type: "idle" })),
-        ]);
-
-        if (result.type === "complete") {
-          remainingMl -= result.volume;
-          if (remainingMl <= 0.5) break;
-          console.log(
-            `📦 Pump reported ${result.volume}ml dosed, remaining ${remainingMl.toFixed(1)}ml`,
-          );
-        } else {
-          remainingMl = 0;
-          break;
-        }
-      } catch (err) {
-        if (err.message === "OFFLINE_INTERRUPT") {
-          let elapsedMs = Date.now() - startTime;
-          let pumpedMl = (elapsedMs / 1000) * flowRate;
-          remainingMl -= pumpedMl;
-          retries++;
-          console.warn(
-            `⚠️ Disconnect after ${elapsedMs}ms, pumped ~${pumpedMl.toFixed(1)}ml, remaining ${remainingMl.toFixed(1)}ml. Retry ${retries}/${MAX_RETRIES}`,
-          );
-          continue;
-        } else {
-          throw err;
-        }
-      }
-    }
-
-    if (remainingMl > 0.5) {
-      throw new Error(
-        `Failed to dose ${pumpName} after ${MAX_RETRIES} retries, ${remainingMl.toFixed(1)}ml remaining`,
-      );
-    }
-
-    await Watchdog.logSuccessfulDose(pumpName, safeMl);
-    return safeMl;
-  }
-
   resolveCurve(param, progress) {
     if (!param) return 0;
     progress = Math.max(0, Math.min(1, progress));
@@ -336,8 +267,7 @@ class RecipeEngine {
       let doseCompleted = false;
 
       try {
-        this.mqtt.sendCommand(actionStr, remainingMl);
-
+        this.mqtt.sendCommand(actionStr, remainingMl, "None", seq);
         // Wait for pump to confirm it received the command (busy)
         await this.mqtt.waitForBusy(10000);
 
@@ -371,19 +301,54 @@ class RecipeEngine {
         if (err.message === "OFFLINE_INTERRUPT") {
           retries++;
           console.warn(
-            `⚠️ Disconnect during dose. Server will NOT assume volume. Awaiting hardware confirmation or retrying. Retry ${retries}/${MAX_RETRIES}`,
+            `⚠️ Disconnect during dose. Server will await hardware resume. Retry ${retries}/${MAX_RETRIES}`,
           );
-          continue;
+
+          try {
+            await this.mqtt.waitForDevice("pump_node_1");
+            console.log(
+              `🔌 Hardware reconnected. Waiting for resume announcement for seq=${seq}...`,
+            );
+            await this.mqtt.waitForBusy(15000, seq);
+            console.log(
+              `✅ Hardware successfully resumed dose seq=${seq}. Re-attaching listener.`,
+            );
+            const result = await Promise.race([
+              this.waitForDoseComplete(
+                seq,
+                2 * (remainingMl / flowRate) * 1000 + 10000,
+              ),
+              this.mqtt.waitForIdle().then(() => ({ type: "idle" })),
+            ]);
+
+            if (result.type === "complete") {
+              remainingMl -= result.volume;
+              if (remainingMl <= 0.5) {
+                doseCompleted = true;
+                break;
+              }
+            } else {
+              remainingMl = 0;
+              doseCompleted = true;
+              break;
+            }
+            continue;
+          } catch (resumeErr) {
+            console.warn(
+              `⚠️ Hardware did not auto-resume. Forcing new command.`,
+            );
+            continue;
+          }
         } else {
           throw err;
         }
       }
-    }
 
-    if (remainingMl > 0.5) {
-      throw new Error(
-        `Failed to dose ${pumpName} after ${MAX_RETRIES} retries, ${remainingMl.toFixed(1)}ml remaining`,
-      );
+      if (remainingMl > 0.5) {
+        throw new Error(
+          `Failed to dose ${pumpName} after ${MAX_RETRIES} retries, ${remainingMl.toFixed(1)}ml remaining`,
+        );
+      }
     }
 
     await Watchdog.logSuccessfulDose(pumpName, safeMl);
