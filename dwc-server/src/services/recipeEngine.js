@@ -320,7 +320,7 @@ class RecipeEngine {
       const livePH = telemetry.realPH;
 
       console.log(
-        `📊 Live | pH: ${livePH.toFixed(2)} | PPM: ${livePPM.toFixed(0)} | PPFD: ${livePPFD}`,
+        `📊 Live | pH: ${livePH.toFixed(2)} | PPM: ${livePPM.toFixed(0)}`,
       );
       console.log(
         `🎯 Protocol | Day: ${currentDay} | Phase: ${stage} | Target: ${targetPPM.toFixed(0)} PPM`,
@@ -344,7 +344,7 @@ class RecipeEngine {
         if (dilutionMl > 50) {
           console.log(`🚀 --- INITIATING DILUTION BATCH ---`);
           const actualWater = await this.executePumpAndWait(
-            "Fresh_Water",
+            "Water",
             "dose_water",
             dilutionMl,
           );
@@ -444,7 +444,7 @@ class RecipeEngine {
           // Flush the manifold lines with RO water
           const flushWater = Math.max(250.0, totalDosed * 2.0);
           const actualWater = await this.executePumpAndWait(
-            "Fresh_Water",
+            "Water",
             "dose_water",
             flushWater,
           );
@@ -496,7 +496,7 @@ class RecipeEngine {
 
         if (await Watchdog.isSafeToDose(type, 2.0)) {
           const actualWater = await this.executePumpAndWait(
-            "Fresh_Water",
+            "Water",
             "dose_water",
             250.0,
           );
@@ -663,24 +663,6 @@ class RecipeEngine {
 
     await Watchdog.logSuccessfulDose(pumpName, safeMl);
     return safeMl;
-  }
-
-  // Helper: wait for a dose_complete message with matching seq
-  waitForDoseComplete(seq, timeoutMs) {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(
-        () => reject(new Error("DOSE_COMPLETE_TIMEOUT")),
-        timeoutMs,
-      );
-      const handler = (message) => {
-        if (message.seq === seq && message.status === "dose_complete") {
-          clearTimeout(timeout);
-          this.mqtt.removeListener("pump_message", handler);
-          resolve({ type: "complete", volume: message.volume_ml });
-        }
-      };
-      this.mqtt.on("pump_message", handler);
-    });
   }
 
   async evaluateAndDose(
