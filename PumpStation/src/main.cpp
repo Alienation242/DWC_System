@@ -35,6 +35,9 @@ const char* TOPIC_COMMANDS   = "kevin/dwc/pump_node_1/commands";
 const char* TOPIC_STATUS     = "kevin/dwc/pump_node_1/status";
 const char* TOPIC_CONNECTION = "kevin/dwc/pump_node_1/connection"; 
 
+unsigned long wifiDisconnectTime = 0;
+const unsigned long WIFI_GRACE_PERIOD_MS = 8000; // 8 seconds of forgiveness
+
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -275,22 +278,33 @@ void setup() {
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setCallback(mqttCallback);
-  client.setKeepAlive(5);
+  client.setKeepAlive(60);
 }
 
 void loop() {
   if (!client.connected()) {
-    if (isSystemBusy) {
+    // Start the timer the moment we lose connection
+    if (wifiDisconnectTime == 0) {
+      wifiDisconnectTime = millis();
+    }
+    
+    // Only trigger the Dead Man's Switch if the network has been dead longer than the grace period
+    if (isSystemBusy && (millis() - wifiDisconnectTime > WIFI_GRACE_PERIOD_MS)) {
       Serial.println("⚠️ NETWORK CONNECTION LOST! Triggering Dead Man's Switch.");
       emergencyStop(); 
     }
+    
+    // Handle reconnection
     unsigned long now = millis();
     if (now - lastReconnectAttempt > 5000) {
       lastReconnectAttempt = now;
       if (WiFi.status() == WL_CONNECTED) reconnect(); 
     }
   } else {
+    // Network is healthy, reset the disconnect timer
+    wifiDisconnectTime = 0;
     client.loop(); 
   }
+  
   checkTimers(); 
 }

@@ -369,12 +369,9 @@ class RecipeEngine {
         }
       } catch (err) {
         if (err.message === "OFFLINE_INTERRUPT") {
-          let elapsedMs = Date.now() - startTime;
-          let pumpedMl = (elapsedMs / 1000) * flowRate;
-          remainingMl -= pumpedMl;
           retries++;
           console.warn(
-            `⚠️ Disconnect after ${elapsedMs}ms, pumped ~${pumpedMl.toFixed(1)}ml, remaining ${remainingMl.toFixed(1)}ml. Retry ${retries}/${MAX_RETRIES}`,
+            `⚠️ Disconnect during dose. Server will NOT assume volume. Awaiting hardware confirmation or retrying. Retry ${retries}/${MAX_RETRIES}`,
           );
           continue;
         } else {
