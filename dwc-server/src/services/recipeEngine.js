@@ -339,8 +339,6 @@ class RecipeEngine {
             }
             continue;
           } catch (resumeErr) {
-            // If it fails to resume, it suffered a true power loss.
-            // Deduct the volume to protect the physical pot!
             console.warn(
               `⚠️ Hardware did not auto-resume (power crash). Deducting assumed volume: ${assumedPumped.toFixed(1)}ml`,
             );
@@ -352,12 +350,12 @@ class RecipeEngine {
           throw err;
         }
       }
+    }
 
-      if (remainingMl > 0.5 && retries >= MAX_RETRIES) {
-        throw new Error(
-          `Failed to dose ${pumpName} after ${MAX_RETRIES} retries, ${remainingMl.toFixed(1)}ml remaining`,
-        );
-      }
+    if (remainingMl > 0.5 && retries >= MAX_RETRIES) {
+      throw new Error(
+        `Failed to dose ${pumpName} after ${MAX_RETRIES} retries, ${remainingMl.toFixed(1)}ml remaining`,
+      );
     }
 
     await Watchdog.logSuccessfulDose(pumpName, safeMl);
@@ -419,7 +417,7 @@ class RecipeEngine {
           .readFile(NUTRIENT_PROFILE_PATH, "utf8")
           .catch(
             () =>
-              '{"carrierFluid":"Fresh_Water","carrierVolumeMl":500,"mixingSequence":[]}',
+              '{"carrierFluid":"Water","carrierVolumeMl":500,"mixingSequence":[]}',
           ),
       );
 
@@ -551,11 +549,7 @@ class RecipeEngine {
         });
 
         try {
-          await this.executePumpAndWait(
-            "Fresh_Water",
-            "dose_water",
-            dilutionMl,
-          );
+          await this.executePumpAndWait("Water", "dose_water", dilutionMl);
           await prisma.batchState.update({
             where: { id: batch.id },
             data: { confirmedWaterMl: dilutionMl },
@@ -612,7 +606,7 @@ class RecipeEngine {
       console.log(`\n🚀 --- INITIATING ${type} CORRECTION ---`);
 
       if (await Watchdog.isSafeToDose(type, 2.0)) {
-        await this.executePumpAndWait("Fresh_Water", "dose_water", 250.0);
+        await this.executePumpAndWait("Water", "dose_water", 250.0);
         const actualAcid = await this.executePumpAndWait(type, topic, 2.0);
 
         const totalVolume = 250.0 + actualAcid;

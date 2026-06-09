@@ -60,7 +60,7 @@ async function autoSeed() {
     { name: "CalMag", limit: 250.0 },
     { name: "Gro", limit: 250.0 },
     { name: "Finisher", limit: 250.0 },
-    { name: "Fresh_Water", limit: 20000.0 },
+    { name: "Water", limit: 20000.0 },
   ];
 
   for (const pump of requiredPumps) {
