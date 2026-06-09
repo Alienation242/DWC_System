@@ -16,7 +16,7 @@ jest.mock("../../src/services/watchdog", () => ({
 }));
 
 // ==========================================
-// THE VIRTUAL HARDWARE
+// THE VIRTUAL HARDWARE (unchanged)
 // ==========================================
 class MockMqttService extends EventEmitter {
   constructor() {
@@ -110,8 +110,6 @@ class MockMqttService extends EventEmitter {
 
   simulateNetworkDrop() {
     this.deviceRegistry["pump_node_1"] = "offline";
-    // CRITICAL BUG FIX: Do NOT set hardwareStatus to "idle" here.
-    // Dead hardware is unresponsive, not gracefully idle.
     this.emit("hardware_error", new Error("OFFLINE_INTERRUPT"));
   }
 
@@ -134,14 +132,18 @@ class MockMqttService extends EventEmitter {
 }
 
 // ==========================================
-// THE TEST SUITE
+// THE FIXED TEST SUITE
 // ==========================================
 describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
   let mqttMock;
   let engine;
+  let realDateNow;
 
   beforeEach(() => {
     jest.useFakeTimers();
+    // Mock Date.now to return the fake timer time
+    realDateNow = Date.now;
+    Date.now = jest.fn(() => new Date().getTime()); // will return fake time
     mqttMock = new MockMqttService();
     engine = new RecipeEngine(mqttMock);
 
@@ -152,6 +154,7 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
 
   afterEach(() => {
     jest.useRealTimers();
+    Date.now = realDateNow;
     jest.restoreAllMocks();
   });
 
@@ -161,12 +164,8 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
       "dose_water",
       1000.0,
     );
-
-    // Exactly 510ms handles the safety buffer + network transit
     await jest.advanceTimersByTimeAsync(510);
-
     mqttMock.simulateHardwareComplete();
-
     const result = await dosePromise;
     expect(result).toBe(1000.0);
     expect(Watchdog.logSuccessfulDose).toHaveBeenCalledWith("Water", 1000.0);
@@ -179,10 +178,8 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
       "dose_ph_up",
       1000.0,
     );
-
     await jest.advanceTimersByTimeAsync(10);
     const result = await dosePromise;
-
     expect(result).toBe(0);
     expect(mqttMock.activeCommand).toBeNull();
   });
@@ -194,18 +191,14 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
       5000.0,
     );
     await jest.advanceTimersByTimeAsync(510);
-
     mqttMock.simulateNetworkDrop();
-    await jest.advanceTimersByTimeAsync(5000); // 5s offline
-
+    await jest.advanceTimersByTimeAsync(5000);
     mqttMock.simulateHardwareAutoResume(1);
     await jest.advanceTimersByTimeAsync(10);
-
     mqttMock.simulateHardwareComplete();
     const result = await dosePromise;
-
     expect(result).toBe(5000.0);
-    expect(mqttMock.seqCounter).toBe(1); // Never fired fallback command
+    expect(mqttMock.seqCounter).toBe(1);
   });
 
   test("4. THE OVERFLOW SHIELD: Deducts volume accurately on power crash", async () => {
@@ -216,8 +209,8 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
     );
     await jest.advanceTimersByTimeAsync(510);
 
-    // Let the pump physically run for exactly 25 seconds
-    await jest.advanceTimersByTimeAsync(25000);
+    // Let the pump physically run for exactly 2.5 seconds (200 mL/s → 500 mL)
+    await jest.advanceTimersByTimeAsync(2500);
 
     mqttMock.simulateNetworkDrop();
     mqttMock.simulateHardwareReboot();
@@ -228,18 +221,17 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
     // The catch block executes, deducting ~500ml, and the loop restarts.
     await jest.advanceTimersByTimeAsync(510);
 
-    // THE FIX: Use toBeCloseTo to account for Node.js Promise resolution micro-delays
     expect(mqttMock.seqCounter).toBe(2);
-    expect(mqttMock.activeCommand.ml).toBeCloseTo(500, 0); // 0 decimal places of strictness
+    expect(mqttMock.activeCommand.ml).toBeCloseTo(500, 0);
 
     mqttMock.simulateHardwareComplete();
     const result = await dosePromise;
     expect(result).toBe(1000.0);
   });
+
   test("5. MAX RETRIES EXCEEDED: Protects system if hardware completely fails", async () => {
     let caughtError = null;
 
-    // We attach a .catch() immediately so Node.js doesn't panic when it rejects in the background
     const dosePromise = engine
       .executePumpAndWait("Water", "dose_water", 1000.0)
       .catch((err) => {
@@ -251,19 +243,13 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
     for (let i = 0; i < 3; i++) {
       mqttMock.simulateNetworkDrop();
       mqttMock.simulateHardwareReboot();
-
-      // Wait for the resume timeout to fail
       await jest.advanceTimersByTimeAsync(15000);
-
       if (i < 2) {
         await jest.advanceTimersByTimeAsync(510);
       }
     }
 
-    // Wait for the background engine to completely finish
     await dosePromise;
-
-    // Assert that our bucket caught the exact error we expected!
     expect(caughtError).not.toBeNull();
     expect(caughtError.message).toMatch(/Failed to dose Water after 3 retries/);
   });
