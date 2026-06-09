@@ -55,6 +55,7 @@ class MqttService extends EventEmitter {
     try {
       const payload = JSON.parse(message.toString());
       this.hardwareStatus = payload.status;
+      this.emit("hardware_status", payload.status);
       if (this.hardwareStatus === "idle") {
         this.emit("hardware_idle");
       }
@@ -63,7 +64,6 @@ class MqttService extends EventEmitter {
     }
   }
 
-  // 🆕 ADDED: Allows the server to pause execution until a device reboots
   waitForDevice(deviceName, timeoutMs = 900000) {
     return new Promise((resolve, reject) => {
       if (this.deviceRegistry[deviceName] === "online") return resolve();
@@ -125,6 +125,31 @@ class MqttService extends EventEmitter {
     });
   }
 
+  waitForBusy(timeoutMs = 30000) {
+    return new Promise((resolve, reject) => {
+      if (this.hardwareStatus === "busy") return resolve();
+
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error("TIMEOUT: Pump did not become busy"));
+      }, timeoutMs);
+
+      const onStatusChange = (status) => {
+        if (status === "busy") {
+          cleanup();
+          resolve();
+        }
+      };
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        this.removeListener("hardware_status", onStatusChange);
+      };
+
+      this.on("hardware_status", onStatusChange);
+    });
+  }
+
   async handleTelemetry(message) {
     // ... [Keep existing handleTelemetry block exactly the same] ...
     try {
@@ -158,7 +183,6 @@ class MqttService extends EventEmitter {
   sendCommand(action, ml = 0, target = "None") {
     const payload = JSON.stringify({ action, ml, target });
     this.client.publish(TOPIC_PUMP_COMMANDS, payload);
-    this.hardwareStatus = "busy";
     console.log(`📤 Command Sent: ${payload}`);
   }
 }

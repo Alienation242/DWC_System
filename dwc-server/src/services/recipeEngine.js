@@ -229,10 +229,9 @@ class RecipeEngine {
 
   async executePumpAndWait(pumpName, actionStr, amountMl) {
     if (amountMl <= 0.5) return 0;
-
     const isWater = pumpName.toLowerCase().includes("water");
     const safeMl = isWater ? amountMl : Math.min(15.0, amountMl);
-    const flowRate = 20.0; // Peristaltic hardware speed
+    const flowRate = 20.0;
 
     if (await Watchdog.isSafeToDose(pumpName, safeMl)) {
       console.log(
@@ -242,32 +241,33 @@ class RecipeEngine {
       let remainingMl = safeMl;
 
       while (remainingMl > 0.5) {
-        // 1. Wait for hardware to be online before attempting
         await this.mqtt.waitForDevice("pump_node_1");
+        // Small delay to let the pump's MQTT loop stabilise after reconnect
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
         let startTime = Date.now();
         try {
           this.mqtt.sendCommand(actionStr, remainingMl);
+          // Wait for pump to confirm it is busy (command received)
+          await this.mqtt.waitForBusy(10000);
+          // Wait for pump to finish
           await this.mqtt.waitForIdle();
-          remainingMl = 0; // Success! Break the loop.
+          remainingMl = 0;
         } catch (err) {
           if (err.message === "OFFLINE_INTERRUPT") {
-            // Calculate how much pumped before the crash
             let elapsedMs = Date.now() - startTime;
             let pumpedMl = (elapsedMs / 1000) * flowRate;
             remainingMl -= pumpedMl;
-
             if (remainingMl > 0.5) {
               console.warn(
-                `⚠️ Network Crash! Pumped approx ${pumpedMl.toFixed(1)}ml. Pausing sequence... waiting for ESP32 to reconnect to push remaining ${remainingMl.toFixed(1)}ml.`,
+                `⚠️ Network Crash! Pumped approx ${pumpedMl.toFixed(1)}ml. Waiting for reconnect to push remaining ${remainingMl.toFixed(1)}ml.`,
               );
             }
           } else {
-            throw err; // Real error, abort.
+            throw err;
           }
         }
       }
-
       await Watchdog.logSuccessfulDose(pumpName, safeMl);
       return safeMl;
     }
