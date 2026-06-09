@@ -62,4 +62,18 @@ describe("RecipeEngine - Strain Profile Target Generator", () => {
     // Day 119 (Day 21 of 21) -> 0 days remaining. FLUSH TO 0.
     expect(engine.getTargetsForDay(candyGamesMock, 119).targetPPM).toBe(0);
   });
+
+  test("4. PHASE BOUNDARY HARD CUT: Ensures zero-interpolation at phase shifts", () => {
+    // Candy Games: Veg Day 56 ends at 750 PPM, Initiation Day 57 starts at 662.5 PPM.
+    // The engine MUST jump exactly to 662.5 on day 57, not interpolate between 750 and 662.5.
+
+    const dayBeforeCut = engine.getTargetsForDay(candyGamesMock, 56);
+    const dayOfCut = engine.getTargetsForDay(candyGamesMock, 57);
+
+    expect(dayBeforeCut.phase).toBe("VEGETATIVE");
+    expect(dayOfCut.phase).toBe("INITIATION");
+
+    // Day 57 is progress 0, so it must be exactly the 'start' value of initiation
+    expect(dayOfCut.targetPPM).toBe(662.5);
+  });
 });
