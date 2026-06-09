@@ -236,13 +236,16 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
     const result = await dosePromise;
     expect(result).toBe(1000.0);
   });
-
   test("5. MAX RETRIES EXCEEDED: Protects system if hardware completely fails", async () => {
-    const dosePromise = engine.executePumpAndWait(
-      "Water",
-      "dose_water",
-      1000.0,
-    );
+    let caughtError = null;
+
+    // We attach a .catch() immediately so Node.js doesn't panic when it rejects in the background
+    const dosePromise = engine
+      .executePumpAndWait("Water", "dose_water", 1000.0)
+      .catch((err) => {
+        caughtError = err;
+      });
+
     await jest.advanceTimersByTimeAsync(510);
 
     for (let i = 0; i < 3; i++) {
@@ -257,9 +260,11 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
       }
     }
 
-    // Because we fixed recipeEngine.js, this will now correctly reject!
-    await expect(dosePromise).rejects.toThrow(
-      /Failed to dose Water after 3 retries/,
-    );
+    // Wait for the background engine to completely finish
+    await dosePromise;
+
+    // Assert that our bucket caught the exact error we expected!
+    expect(caughtError).not.toBeNull();
+    expect(caughtError.message).toMatch(/Failed to dose Water after 3 retries/);
   });
 });
