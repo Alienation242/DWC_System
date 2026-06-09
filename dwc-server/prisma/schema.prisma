@@ -51,7 +51,7 @@ model WatchdogConfig {
 }
 
 model BatchState {
-  id                Int      @id @default(1)
+  id                Int      @id @default(autoincrement())
   active            Boolean  @default(false)
   batchType         String   // "DILUTION", "NUTRIENT", "PH_CORRECTION", "EMERGENCY_WATER"
   totalWaterMl      Float

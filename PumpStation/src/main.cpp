@@ -114,14 +114,9 @@ void startDosing(int pin, float ml, const char* pumpName, uint32_t seq) {
   if (isSystemBusy) return;
   if (ml <= 0) return;
   
-  // Ignore stale command
-  if (seq <= lastSeqNum && seq != 0) {
-    Serial.printf("⚠️ Ignoring stale command seq=%u (last=%u)\n", seq, lastSeqNum);
-    return;
-  }
   lastSeqNum = seq;
   currentDoseSeq = seq;
-  currentDoseRequestedMl = ml;  // store requested volume
+  currentDoseRequestedMl = ml;  
 
   unsigned long durationMs = (unsigned long)((ml / PERISTALTIC_ML_PER_SEC) * 1000);
   if (durationMs > MAX_RUNTIME_MS) durationMs = MAX_RUNTIME_MS; 
@@ -237,7 +232,32 @@ void reconnect() {
     Serial.println(" ✅ Connected!");
     client.publish(TOPIC_CONNECTION, "online", true);
     client.subscribe(TOPIC_COMMANDS);
-    if (!isSystemBusy) publishStatus("idle", "none");
+
+    // CASE 1: Dead Man's Switch paused the dose. Resume it!
+    if (pendingDosePin != -1 && pendingDoseDuration > 0) {
+      Serial.printf("🔁 Resuming paused dose after WiFi drop: pin %d for %lu ms (seq=%u)\n",
+                    pendingDosePin, pendingDoseDuration, pendingDoseSeq);
+      isSystemBusy = true;
+      activeDosingPin = pendingDosePin;
+      actionEndTime = millis() + pendingDoseDuration;
+      currentDoseStartTime = millis();
+      currentDoseSeq = pendingDoseSeq;
+      digitalWrite(activeDosingPin, HIGH);
+
+      publishStatus("busy", "resumed_dosing");
+
+      pendingDosePin = -1;
+      pendingDoseDuration = 0;
+    }
+    // CASE 2: Network dropped briefly, but we NEVER stopped pumping.
+    else if (isSystemBusy) {
+      Serial.printf("📢 Reconnected while busy. Broadcasting status for seq=%u\n", currentDoseSeq);
+      publishStatus("busy", "resumed_dosing"); // Tell the server we are still on the job!
+    }
+    // CASE 3: System is totally idle.
+    else {
+      publishStatus("idle", "none");
+    }
   } else {
     Serial.print(" ❌ Failed, rc=");
     Serial.println(client.state());
