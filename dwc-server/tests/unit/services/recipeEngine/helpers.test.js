@@ -125,12 +125,35 @@ describe("calculateDeficit", () => {
     expect(res.bloom).toBeCloseTo(1.539, 2);
   });
 
-  test("initiation uses 2:2:2 and 250 CalMag cap", () => {
+  test("initiation uses 1:2:2 and 250 CalMag cap", () => {
     const res = engine.calculateDeficit(800, 200, "INITIATION", 60, 20);
-    expect(res.cal).toBeCloseTo(3.33, 2);
-    expect(res.gro).toBeCloseTo(6.72, 2);
-    expect(res.micro).toBeCloseTo(6.72, 2);
-    expect(res.bloom).toBeCloseTo(6.72, 2);
+    // Expected values from the same formula as recipeMath.test.js
+    const targetPPM = 800;
+    const deficitPPM = 200;
+    const sysVol = 20;
+    const targetCalCap = 250;
+    const targetCalPpm = Math.min(targetPPM, targetCalCap); // 250
+    const targetBasePpm = targetPPM - targetCalPpm; // 550
+    const ratioCal = targetCalPpm / targetPPM; // 0.3125
+    const ratioBase = targetBasePpm / targetPPM; // 0.6875
+    const deficitCalPpm = deficitPPM * ratioCal; // 62.5
+    const deficitBasePpm = deficitPPM * ratioBase; // 137.5
+    const calMl = (deficitCalPpm * sysVol) / 375; // (62.5*20)/375 = 3.3333
+    const totalBaseMl = (deficitBasePpm * sysVol) / 136.4; // (137.5*20)/136.4 ≈ 20.161
+    const partsG = 1,
+      partsM = 2,
+      partsB = 2;
+    const totalParts = 5;
+    const mlPerPart = totalBaseMl / totalParts; // 20.161/5 = 4.0322
+    const gro = partsG * mlPerPart; // 4.0322
+    const micro = partsM * mlPerPart; // 8.0644
+    const bloom = partsB * mlPerPart; // 8.0644
+
+    expect(res.cal).toBeCloseTo(calMl, 2);
+    expect(res.gro).toBeCloseTo(gro, 2);
+    expect(res.micro).toBeCloseTo(micro, 2);
+    expect(res.bloom).toBeCloseTo(bloom, 2);
+    expect(res.fin).toBe(0);
   });
 
   test("ripening uses only finisher", () => {

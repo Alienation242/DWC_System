@@ -153,7 +153,9 @@ class RecipeEngine {
     );
     const effectivePPFD = livePPFD == null ? targetPpfd : livePPFD;
     const excessLight = Math.max(0, effectivePPFD - targetPpfd);
-    const dynamicTargetPpm = floorPpm + excessLight * lightMult;
+    const maxBoost = 150; // maximum PPM increase from light
+    const dynamicTargetPpm =
+      floorPpm + Math.min(maxBoost, excessLight * lightMult);
 
     return { phase: stageMap[phase], targetPPM: dynamicTargetPpm };
   }
