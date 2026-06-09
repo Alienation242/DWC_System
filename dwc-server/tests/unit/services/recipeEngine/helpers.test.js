@@ -166,4 +166,8 @@ describe("calculateDeficit", () => {
     const res = engine.calculateDeficit(0, 100, "VEGETATIVE", 10, 18);
     expect(res).toEqual({ cal: 0, gro: 0, micro: 0, bloom: 0, fin: 0 });
   });
+
+  test("resolveCurve returns 0 if param missing", () => {
+    expect(engine.resolveCurve(null, 0.5)).toBe(0);
+  });
 });

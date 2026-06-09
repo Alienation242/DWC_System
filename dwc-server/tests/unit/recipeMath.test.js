@@ -76,4 +76,9 @@ describe("RecipeEngine - Frontend Simulator Math Alignment", () => {
     expect(result.bloom).toBeCloseTo(3.665 / 3, 2);
     expect(result.fin).toBe(0);
   });
+
+  test("sysVol zero does not cause division by zero", () => {
+    const res = engine.calculateDeficit(500, 100, "VEGETATIVE", 14, 0);
+    expect(res.cal).toBe(0);
+  });
 });

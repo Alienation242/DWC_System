@@ -93,4 +93,15 @@ describe("Watchdog Unit Tests", () => {
       data: { pumpName: "CalMag", ml: 12.5, status: "SUCCESS" },
     });
   });
+
+  test("water is safe even if config missing (default created)", async () => {
+    prisma.watchdogConfig.findUnique.mockResolvedValue(null);
+    prisma.watchdogConfig.create.mockResolvedValue({
+      enabled: true,
+      dailyLimitMl: 20000,
+    });
+    prisma.doseLog.aggregate.mockResolvedValue({ _sum: { ml: 0 } });
+    const safe = await Watchdog.isSafeToDose("Water", 5000);
+    expect(safe).toBe(true);
+  });
 });

@@ -224,31 +224,34 @@ app.get("/api/status", (req, res) => {
 // ------------------ Start Server ------------------
 const PORT = process.env.PORT || 3000;
 
-autoSeed()
-  .then(async () => {
-    // Clean up incomplete batches
-    const incompleteBatch = await prisma.batchState.findFirst({
-      where: { active: true },
-    });
-    if (incompleteBatch) {
-      console.warn(
-        "⚠️ Found incomplete batch from previous run. Sending emergency stop.",
-      );
-      hardwareComms.sendCommand("stop");
-      await prisma.batchState.update({
-        where: { id: incompleteBatch.id },
-        data: { active: false },
+if (require.main === module) {
+  autoSeed()
+    .then(async () => {
+      const incompleteBatch = await prisma.batchState.findFirst({
+        where: { active: true },
       });
-    }
-    server.listen(PORT, () => {
-      console.log(`\n🚀 Smart DWC Server running on port ${PORT}`);
-      console.log(
-        `⏱️  Autonomous Engine Tick set to ${TICK_INTERVAL_MS / 1000 / 60} minutes.`,
-      );
-      setTimeout(runEngineLoop, 5000);
+      if (incompleteBatch) {
+        console.warn(
+          "⚠️ Found incomplete batch from previous run. Sending emergency stop.",
+        );
+        hardwareComms.sendCommand("stop");
+        await prisma.batchState.update({
+          where: { id: incompleteBatch.id },
+          data: { active: false },
+        });
+      }
+      server.listen(PORT, () => {
+        console.log(`\n🚀 Smart DWC Server running on port ${PORT}`);
+        console.log(
+          `⏱️  Autonomous Engine Tick set to ${TICK_INTERVAL_MS / 1000 / 60} minutes.`,
+        );
+        setTimeout(runEngineLoop, 5000);
+      });
+    })
+    .catch((err) => {
+      console.error("❌ Failed to seed database on startup:", err);
+      process.exit(1);
     });
-  })
-  .catch((err) => {
-    console.error("❌ Failed to seed database on startup:", err);
-    process.exit(1);
-  });
+}
+
+module.exports = app;
