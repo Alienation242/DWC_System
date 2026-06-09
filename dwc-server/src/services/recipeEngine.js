@@ -262,37 +262,33 @@ class RecipeEngine {
       await this.mqtt.waitForDevice("pump_node_1");
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      const seq = this.mqtt.nextSeq(); // get new sequence number
-      const startTime = Date.now();
+      const seq = this.mqtt.nextSeq();
+      let doseStartTime = null;
       let doseCompleted = false;
 
       try {
         this.mqtt.sendCommand(actionStr, remainingMl, "None", seq);
-        // Wait for pump to confirm it received the command (busy)
         await this.mqtt.waitForBusy(10000);
+        doseStartTime = Date.now(); // <-- Record EXACT start time
 
-        // Wait for either dose_complete or OFFLINE_INTERRUPT
         const result = await Promise.race([
           this.waitForDoseComplete(
             seq,
             2 * (remainingMl / flowRate) * 1000 + 10000,
           ),
-          this.mqtt.waitForIdle().then(() => ({ type: "idle" })), // fallback
+          this.mqtt.waitForIdle().then(() => ({ type: "idle" })),
         ]);
 
         if (result.type === "complete") {
-          // Pump reported exact volume pumped
           remainingMl -= result.volume;
           if (remainingMl <= 0.5) {
             doseCompleted = true;
             break;
           }
-          // Otherwise, continue loop with remaining volume
           console.log(
             `📦 Pump reported ${result.volume}ml dosed, remaining ${remainingMl.toFixed(1)}ml`,
           );
         } else {
-          // Got idle without complete – assume success
           remainingMl = 0;
           doseCompleted = true;
           break;
@@ -304,6 +300,14 @@ class RecipeEngine {
             `⚠️ Disconnect during dose. Server will await hardware resume. Retry ${retries}/${MAX_RETRIES}`,
           );
 
+          // --- THE OVERFLOW SHIELD ---
+          // Calculate max possible volume pumped before the crash
+          let assumedPumped = 0;
+          if (doseStartTime !== null) {
+            let elapsed = Date.now() - doseStartTime;
+            assumedPumped = (elapsed / 1000) * flowRate;
+          }
+
           try {
             await this.mqtt.waitForDevice("pump_node_1");
             console.log(
@@ -313,6 +317,7 @@ class RecipeEngine {
             console.log(
               `✅ Hardware successfully resumed dose seq=${seq}. Re-attaching listener.`,
             );
+
             const result = await Promise.race([
               this.waitForDoseComplete(
                 seq,
@@ -334,9 +339,13 @@ class RecipeEngine {
             }
             continue;
           } catch (resumeErr) {
+            // If it fails to resume, it suffered a true power loss.
+            // Deduct the volume to protect the physical pot!
             console.warn(
-              `⚠️ Hardware did not auto-resume. Forcing new command.`,
+              `⚠️ Hardware did not auto-resume (power crash). Deducting assumed volume: ${assumedPumped.toFixed(1)}ml`,
             );
+            remainingMl -= assumedPumped;
+            if (remainingMl < 0) remainingMl = 0;
             continue;
           }
         } else {
@@ -344,7 +353,7 @@ class RecipeEngine {
         }
       }
 
-      if (remainingMl > 0.5) {
+      if (remainingMl > 0.5 && retries >= MAX_RETRIES) {
         throw new Error(
           `Failed to dose ${pumpName} after ${MAX_RETRIES} retries, ${remainingMl.toFixed(1)}ml remaining`,
         );

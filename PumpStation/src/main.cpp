@@ -87,6 +87,7 @@ void publishStatus(const char* state, const char* task) {
   JsonDocument doc;
   doc["status"] = state;
   doc["task"] = task;
+  doc["seq"] = currentDoseSeq;
   char buffer[100];
   serializeJson(doc, buffer);
   client.publish(TOPIC_STATUS, buffer);

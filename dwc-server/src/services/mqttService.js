@@ -59,6 +59,8 @@ class MqttService extends EventEmitter {
     try {
       const payload = JSON.parse(message.toString());
       this.hardwareStatus = payload.status;
+      this.hardwareTask = payload.task; // <-- Store task
+      this.hardwareSeq = payload.seq; // <-- Store sequence
 
       this.emit("hardware_status", payload);
 
@@ -133,7 +135,19 @@ class MqttService extends EventEmitter {
 
   waitForBusy(timeoutMs = 30000, expectedSeq = null) {
     return new Promise((resolve, reject) => {
-      if (this.hardwareStatus === "busy") return resolve();
+      // THE FIX: Check sequence even if it is already busy
+      if (this.hardwareStatus === "busy") {
+        if (
+          expectedSeq &&
+          this.hardwareTask === "resumed_dosing" &&
+          this.hardwareSeq !== expectedSeq
+        ) {
+          // Wrong sequence, keep waiting
+        } else {
+          return resolve();
+        }
+      }
+
       const timeout = setTimeout(() => {
         cleanup();
         reject(new Error("TIMEOUT: Pump did not become busy"));
