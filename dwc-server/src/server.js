@@ -213,9 +213,6 @@ async function runEngineLoop() {
   setTimeout(runEngineLoop, TICK_INTERVAL_MS);
 }
 
-// Start the loop 5 seconds after boot
-setTimeout(runEngineLoop, 5000);
-
 // ------------------ Health Check ------------------
 app.get("/api/status", (req, res) => {
   res.json({
@@ -234,8 +231,7 @@ autoSeed()
       console.log(
         `⏱️  Autonomous Engine Tick set to ${TICK_INTERVAL_MS / 1000 / 60} minutes.`,
       );
-      // Run first tick after 5 seconds
-      setTimeout(() => engine.executeTick(), 5000);
+      setTimeout(runEngineLoop, 5000);
     });
   })
   .catch((err) => {
