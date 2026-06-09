@@ -72,4 +72,14 @@ describe("RecipeEngine - PPFD to PPM Heatmap State Machine", () => {
 
     expect(result.targetPPM).toBe(0);
   });
+
+  test("5. SENSORLESS DEFAULT: If no PPFD sensor is provided, defaults to optimal target", () => {
+    // Veg Day 29. Target PPFD = 377.27.
+    // If we pass null (no sensor), it should use 377.27 as the reference.
+    // Excess = 377.27 - 377.27 = 0.
+    // Expected Dynamic Target = Floor PPM (294.7).
+    const result = engine.getDynamicTarget(candyGamesMock, 29, null);
+
+    expect(result.targetPPM).toBeCloseTo(294.7, 1);
+  });
 });

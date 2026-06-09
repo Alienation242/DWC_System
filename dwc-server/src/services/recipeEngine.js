@@ -210,7 +210,10 @@ class RecipeEngine {
       false,
     );
 
-    const excessLight = Math.max(0, livePPFD - targetPpfd);
+    const effectivePPFD =
+      livePPFD === null || livePPFD === undefined ? targetPpfd : livePPFD;
+
+    const excessLight = Math.max(0, effectivePPFD - targetPpfd);
     const dynamicTargetPpm = floorPpm + excessLight * lightMult;
 
     return { phase: stageMap[phase], targetPPM: dynamicTargetPpm };
@@ -299,16 +302,13 @@ class RecipeEngine {
       const currentDay = systemState.currentDay || 1;
       const sysVol = systemState.systemVolumeLiters || 18.0;
 
-      // Map live PPFD (fallback to 600 if no sensor is attached yet)
-      const livePPFD = telemetry.realPPFD || 600;
-
       // ==========================================
       // 3. THE WIRING: Engage the Dynamic Heatmap
       // ==========================================
       const dynamicData = this.getDynamicTarget(
         activeProfile,
         currentDay,
-        livePPFD,
+        null,
       );
 
       const targetPPM = dynamicData.targetPPM;
