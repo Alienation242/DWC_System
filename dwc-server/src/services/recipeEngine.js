@@ -80,165 +80,468 @@ class RecipeEngine {
     return { stage: "FLUSH", progress: 1.0, data: null };
   }
 
-  calculateDeficitMath(targetPPM, deficitPPM, stage, exactDays, sysVol) {
-    if (stage === "FLUSH")
-      return { cal: 0, gro: 0, micro: 0, bloom: 0, fin: 0 };
+  resolveCurve(node, dayInPhase, maxDaysInPhase, isRipeningPpm = false) {
+    if (!node) return 0;
 
-    const targetCalPpm = stage === "VEGETATIVE" ? 150 : 250;
-    const idealCalMagPpm = Math.min(targetPPM, targetCalPpm);
-    const idealBasePpm = Math.max(0, targetPPM - idealCalMagPpm);
+    // THE OVERRIDE: The 2-Day Ripening Flush
+    if (isRipeningPpm) {
+      const daysRemaining = maxDaysInPhase - dayInPhase;
+      if (daysRemaining < 2) return 0;
+      return node.start; // EC is strictly held until the flush
+    }
 
-    const ppmNeededCal = deficitPPM * (idealCalMagPpm / targetPPM);
-    const ppmNeededBase = deficitPPM * (idealBasePpm / targetPPM);
+    // THE HARD CUT: (day - 1) / (max - 1) ensures Day 1 evaluates to exactly 0.0
+    const progress =
+      maxDaysInPhase > 1 ? (dayInPhase - 1) / (maxDaysInPhase - 1) : 1;
+    return (
+      node.start +
+      (node.end - node.start) * Math.pow(progress, node.curve || 1.0)
+    );
+  }
 
-    const calMag_ml = (ppmNeededCal / CALMAG_PPM_PER_ML_L) * sysVol;
-    const totalBase_ml = (ppmNeededBase / BASE_PPM_PER_ML_L) * sysVol;
+  getTargetsForDay(profile, currentDay) {
+    const flipDay = (profile.flipWeek - 1) * 7;
+    const stretchDays = profile.stretchWks * 7;
+    const bulkDays = profile.bulkWks * 7;
+    const ripenDays = profile.ripenWks * 7;
+
+    let phase, dayInPhase, maxDaysInPhase;
+
+    if (currentDay <= flipDay) {
+      phase = "veg";
+      dayInPhase = currentDay;
+      maxDaysInPhase = flipDay;
+    } else if (currentDay <= flipDay + stretchDays) {
+      phase = "initiation";
+      dayInPhase = currentDay - flipDay;
+      maxDaysInPhase = stretchDays;
+    } else if (currentDay <= flipDay + stretchDays + bulkDays) {
+      phase = "bulking";
+      dayInPhase = currentDay - (flipDay + stretchDays);
+      maxDaysInPhase = bulkDays;
+    } else {
+      phase = "ripening";
+      dayInPhase = Math.min(
+        currentDay - (flipDay + stretchDays + bulkDays),
+        ripenDays,
+      );
+      maxDaysInPhase = ripenDays;
+    }
+
+    const pNode = profile.phases[phase];
+    const targetPPM = this.resolveCurve(
+      pNode.basePpm,
+      dayInPhase,
+      maxDaysInPhase,
+      phase === "ripening",
+    );
+    const stageMap = {
+      veg: "VEGETATIVE",
+      initiation: "INITIATION",
+      bulking: "BULKING",
+      ripening: "RIPENING",
+    };
+
+    return { phase: stageMap[phase], targetPPM: targetPPM };
+  }
+
+  getDynamicTarget(profile, currentDay, livePPFD) {
+    const flipDay = (profile.flipWeek - 1) * 7;
+    const stretchDays = profile.stretchWks * 7;
+    const bulkDays = profile.bulkWks * 7;
+    const ripenDays = profile.ripenWks * 7;
+
+    let phase, dayInPhase, maxDaysInPhase;
+
+    if (currentDay <= flipDay) {
+      phase = "veg";
+      dayInPhase = currentDay;
+      maxDaysInPhase = flipDay;
+    } else if (currentDay <= flipDay + stretchDays) {
+      phase = "initiation";
+      dayInPhase = currentDay - flipDay;
+      maxDaysInPhase = stretchDays;
+    } else if (currentDay <= flipDay + stretchDays + bulkDays) {
+      phase = "bulking";
+      dayInPhase = currentDay - (flipDay + stretchDays);
+      maxDaysInPhase = bulkDays;
+    } else {
+      phase = "ripening";
+      dayInPhase = Math.min(
+        currentDay - (flipDay + stretchDays + bulkDays),
+        ripenDays,
+      );
+      maxDaysInPhase = ripenDays;
+    }
+
+    const pNode = profile.phases[phase];
+    const isRipening = phase === "ripening";
+    const stageMap = {
+      veg: "VEGETATIVE",
+      initiation: "INITIATION",
+      bulking: "BULKING",
+      ripening: "RIPENING",
+    };
+
+    // 1. Get Floor PPM
+    const floorPpm = this.resolveCurve(
+      pNode.basePpm,
+      dayInPhase,
+      maxDaysInPhase,
+      isRipening,
+    );
+
+    // 2. Enforce Ripening Flush Override (Ignore light if flushing)
+    if (isRipening && floorPpm === 0) {
+      return { phase: stageMap[phase], targetPPM: 0 };
+    }
+
+    // 3. Apply Heatmap Logic
+    const targetPpfd = this.resolveCurve(
+      pNode.ppfd,
+      dayInPhase,
+      maxDaysInPhase,
+      false,
+    );
+    const lightMult = this.resolveCurve(
+      pNode.lightMult,
+      dayInPhase,
+      maxDaysInPhase,
+      false,
+    );
+
+    const excessLight = Math.max(0, livePPFD - targetPpfd);
+    const dynamicTargetPpm = floorPpm + excessLight * lightMult;
+
+    return { phase: stageMap[phase], targetPPM: dynamicTargetPpm };
+  }
+
+  calculateDeficit(targetPPM, deficitPPM, stage, currentDay, sysVol) {
+    if (targetPPM <= 0) return { cal: 0, gro: 0, micro: 0, bloom: 0, fin: 0 };
+
+    const targetCalCap = stage.toUpperCase() === "VEGETATIVE" ? 150.0 : 250.0;
+    const targetCalPpm = Math.min(targetPPM, targetCalCap);
+    const targetBasePpm = Math.max(0, targetPPM - targetCalPpm);
+
+    const ratioCal = targetCalPpm / targetPPM;
+    const ratioBase = targetBasePpm / targetPPM;
+
+    const deficitCalPpm = deficitPPM * ratioCal;
+    const deficitBasePpm = deficitPPM * ratioBase;
+
+    const calMl = (deficitCalPpm * sysVol) / CALMAG_PPM_PER_ML_L; // Uses your 375.0 constant
+    const totalBaseMl = (deficitBasePpm * sysVol) / BASE_PPM_PER_ML_L; // Uses your 136.4 constant
 
     let gro = 0,
       micro = 0,
       bloom = 0,
       fin = 0;
+    const s = stage.toUpperCase();
 
-    if (stage === "RIPENING") {
-      fin = totalBase_ml;
+    if (s === "RIPENING") {
+      fin = totalBaseMl;
     } else {
-      let pG = 1,
-        pM = 1,
-        pB = 1;
-      if (exactDays <= 7) {
-        pG = 1;
-        pM = 1;
-        pB = 1;
-      } else if (stage === "VEGETATIVE") {
-        pG = 3;
-        pM = 2;
-        pB = 1;
-      } else if (stage === "INITIATION") {
-        pG = 1;
-        pM = 2;
-        pB = 2;
-      } else if (stage === "BULKING") {
-        pG = 1;
-        pM = 2;
-        pB = 3;
+      let partsG = 1,
+        partsM = 1,
+        partsB = 1;
+
+      if (currentDay <= 7) {
+        partsG = 1;
+        partsM = 1;
+        partsB = 1;
+      } else if (s === "VEGETATIVE") {
+        partsG = 3;
+        partsM = 2;
+        partsB = 1;
+      } else if (s === "INITIATION") {
+        partsG = 2;
+        partsM = 2;
+        partsB = 2; // <-- THE INITIATION TYPO IS FIXED HERE!
+      } else if (s === "BULKING") {
+        partsG = 1;
+        partsM = 2;
+        partsB = 3;
       }
 
-      const totalParts = pG + pM + pB;
-      const mlPerPart = totalBase_ml / totalParts;
-      gro = pG * mlPerPart;
-      micro = pM * mlPerPart;
-      bloom = pB * mlPerPart;
+      let totalParts = partsG + partsM + partsB;
+      let mlPerPart = totalBaseMl / totalParts;
+      gro = partsG * mlPerPart;
+      micro = partsM * mlPerPart;
+      bloom = partsB * mlPerPart;
     }
-    return { cal: calMag_ml, gro, micro, bloom, fin };
+
+    return { cal: calMl, gro, micro, bloom, fin };
   }
 
   async executeTick() {
-    if (this.isTicking) {
-      console.warn(
-        "⚠️ Engine is currently active. Ignoring overlapping tick request.",
-      );
-      return;
-    }
-
-    if (this.mqtt.deviceRegistry["pump_node_1"] === "offline") {
-      console.error("🛑 CRITICAL: Pump Manifold is OFFLINE. Aborting tick.");
-      return;
-    }
-    if (this.mqtt.deviceRegistry["sensor_node_1"] === "offline") {
-      console.error(
-        "🛑 CRITICAL: Sensor Node is OFFLINE. Aborting tick to prevent blind dosing.",
-      );
-      return;
-    }
-
+    if (this.isTicking) return;
     this.isTicking = true;
-    console.log("\n--- 🧠 [RECIPE ENGINE] TICK INITIATED ---");
 
     try {
-      const state = await prisma.systemState.findUnique({ where: { id: 1 } });
-      if (!state || state.automationMode === "MANUAL_OVERRIDE") return;
+      console.log(`\n--- 🧠 [RECIPE ENGINE] TICK INITIATED ---`);
 
-      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
-      const recentLogs = await prisma.telemetryLog.findMany({
-        take: 5,
-        where: { timestamp: { gte: twoMinutesAgo } },
+      // 1. Fetch live telemetry from the database
+      const telemetry = await prisma.telemetryLog.findFirst({
         orderBy: { timestamp: "desc" },
       });
 
-      if (recentLogs.length === 0)
-        return console.log("⏳ Waiting for fresh telemetry...");
-
-      const currentStatus = recentLogs[0];
-      if (currentStatus.isTankOverflowing) {
-        this.mqtt.sendCommand("stop");
-        return console.error(
-          "🛑 CRITICAL: Pot is overflowing! Aborting all pump operations.",
-        );
-      }
-
-      const validLogs = recentLogs.filter((log) => !log.isTankEmpty);
-
-      let livePH = 5.8;
-      let livePPM = 0;
-
-      if (validLogs.length > 0) {
-        livePH = validLogs.reduce((s, l) => s + l.realPH, 0) / validLogs.length;
-        livePPM =
-          validLogs.reduce((s, l) => s + l.realEC, 0) / validLogs.length;
-      } else if (!currentStatus.isTankEmpty) {
-        return console.log("⏳ Waiting for stable wet telemetry...");
-      }
-
-      console.log(
-        `📊 Live | pH: ${livePH.toFixed(2)} | PPM: ${Math.round(livePPM)}`,
-      );
-
-      const rawProfile = await fs.readFile(
-        path.join(process.cwd(), state.currentProfilePath),
-        "utf8",
-      );
-      const strainData = JSON.parse(rawProfile);
-      const bio = this.getBiologicalStage(state.currentDay, strainData);
-
-      let baseTarget = 0;
-      if (bio.stage === "FLUSH") {
-        console.log("💧 FLUSH STAGE: 0 PPM Target.");
-        baseTarget = 0;
-      } else {
-        baseTarget = this.resolveCurve(bio.data.basePpm, bio.progress);
-        console.log(
-          `🎯 Protocol | Phase: ${bio.stage} | Target: ${baseTarget.toFixed(0)} PPM`,
-        );
-      }
-
-      if (currentStatus.isTankEmpty) {
-        console.warn(
-          "⚠️ POT EMPTY: Triggering emergency RO water top-off batch!",
-        );
-        await this.evaluateAndDose(
-          livePH,
-          livePPM,
-          baseTarget,
-          bio.stage,
-          state.currentDay,
-          state.sysVol,
-          true,
-        );
+      if (!telemetry) {
+        console.log("⏳ Waiting for fresh telemetry...");
+        this.isTicking = false;
         return;
       }
 
-      await this.evaluateAndDose(
-        livePH,
-        livePPM,
-        baseTarget,
-        bio.stage,
-        state.currentDay,
-        state.sysVol,
-        false,
+      // 2. Fetch System State and Active Profile
+      const systemState = await prisma.systemState.findFirst();
+      const rawProfile = await fs.readFile(NUTRIENT_PROFILE_PATH, "utf8");
+      const activeProfile = JSON.parse(rawProfile);
+
+      const currentDay = systemState.currentDay || 1;
+      const sysVol = systemState.systemVolumeLiters || 18.0;
+
+      // Map live PPFD (fallback to 600 if no sensor is attached yet)
+      const livePPFD = telemetry.realPPFD || 600;
+
+      // ==========================================
+      // 3. THE WIRING: Engage the Dynamic Heatmap
+      // ==========================================
+      const dynamicData = this.getDynamicTarget(
+        activeProfile,
+        currentDay,
+        livePPFD,
       );
-    } catch (error) {
-      console.error("❌ Recipe Engine Error:", error);
-      this.mqtt.sendCommand("stop");
+
+      const targetPPM = dynamicData.targetPPM;
+      const stage = dynamicData.phase;
+
+      // Convert Live EC (uS/cm) to 500-Scale PPM
+      const liveEC = telemetry.realEC;
+      const livePPM = liveEC * 0.5;
+      const livePH = telemetry.realPH;
+
+      console.log(
+        `📊 Live | pH: ${livePH.toFixed(2)} | PPM: ${livePPM.toFixed(0)} | PPFD: ${livePPFD}`,
+      );
+      console.log(
+        `🎯 Protocol | Day: ${currentDay} | Phase: ${stage} | Target: ${targetPPM.toFixed(0)} PPM`,
+      );
+
+      const deadbandPPM = 20; // Prevent micro-dosing
+
+      // ==========================================
+      // PHASE 1: EC EXCESS (Dilution Priority)
+      // ==========================================
+      if (livePPM > targetPPM + deadbandPPM) {
+        const excessPPM = livePPM - targetPPM;
+        console.log(
+          `📈 EC Excess Detected (+${excessPPM.toFixed(0)} PPM) | Priority override: Diluting before pH.`,
+        );
+
+        // Calculate dilution water needed (Safe estimation: limit to 5L per tick)
+        const dilutionRatio = livePPM / targetPPM - 1;
+        const dilutionMl = Math.min(sysVol * 1000 * dilutionRatio, 5000);
+
+        if (dilutionMl > 50) {
+          console.log(`🚀 --- INITIATING DILUTION BATCH ---`);
+          const actualWater = await this.executePumpAndWait(
+            "Fresh_Water",
+            "dose_water",
+            dilutionMl,
+          );
+
+          if (actualWater > 0) {
+            const blowoutVolume = actualWater * 1.2;
+            console.log(
+              `🌊 Delivering ${actualWater.toFixed(1)}ml pure water (Blowout ${blowoutVolume.toFixed(1)}ml)...`,
+            );
+
+            // Submersible Delivery Retry Loop
+            let remainingDeliver = blowoutVolume;
+            while (remainingDeliver > 0.5) {
+              await this.mqtt.waitForDevice("pump_node_1");
+              let startTime = Date.now();
+              try {
+                this.mqtt.sendCommand(
+                  "deliver",
+                  remainingDeliver,
+                  "A",
+                  this.mqtt.nextSeq(),
+                );
+                await this.mqtt.waitForIdle();
+                remainingDeliver = 0;
+              } catch (err) {
+                if (err.message === "OFFLINE_INTERRUPT") {
+                  let elapsedMs = Date.now() - startTime;
+                  let pumpedMl = (elapsedMs / 1000) * 50.0;
+                  remainingDeliver -= pumpedMl;
+                  if (remainingDeliver > 0.5)
+                    console.warn(
+                      `⚠️ Delivery interrupted. Remaining: ${remainingDeliver.toFixed(1)}ml. Waiting...`,
+                    );
+                } else throw err;
+              }
+            }
+            console.log(`✅ --- DILUTION SEQUENCE COMPLETE --- \n`);
+            this.isTicking = false;
+            return; // Exit and wait 5 minutes for EC to stabilize before checking pH!
+          }
+        }
+      }
+
+      // ==========================================
+      // PHASE 2: EC DEFICIT (Nutrient Priority)
+      // ==========================================
+      else if (livePPM < targetPPM - deadbandPPM) {
+        const deficitPPM = targetPPM - livePPM;
+        console.log(`📉 EC Deficit Detected (-${deficitPPM.toFixed(0)} PPM)`);
+
+        // Generate the exact fractional doses based on currentDay and Stage!
+        const dose = this.calculateDeficit(
+          targetPPM,
+          deficitPPM,
+          stage,
+          currentDay,
+          sysVol,
+        );
+        const totalNutrients =
+          dose.cal + dose.gro + dose.micro + dose.bloom + dose.fin;
+
+        if (totalNutrients > 1.0) {
+          console.log(`🚀 --- INITIATING NUTRIENT BATCH ---`);
+          let totalDosed = 0;
+
+          if (dose.cal > 0.5)
+            totalDosed += await this.executePumpAndWait(
+              "CalMag",
+              "dose_calmag",
+              dose.cal,
+            );
+          if (dose.micro > 0.5)
+            totalDosed += await this.executePumpAndWait(
+              "Micro",
+              "dose_micro",
+              dose.micro,
+            );
+          if (dose.gro > 0.5)
+            totalDosed += await this.executePumpAndWait(
+              "Gro",
+              "dose_gro",
+              dose.gro,
+            );
+          if (dose.bloom > 0.5)
+            totalDosed += await this.executePumpAndWait(
+              "Bloom",
+              "dose_bloom",
+              dose.bloom,
+            );
+          if (dose.fin > 0.5)
+            totalDosed += await this.executePumpAndWait(
+              "Finisher",
+              "dose_finisher",
+              dose.fin,
+            );
+
+          // Flush the manifold lines with RO water
+          const flushWater = Math.max(250.0, totalDosed * 2.0);
+          const actualWater = await this.executePumpAndWait(
+            "Fresh_Water",
+            "dose_water",
+            flushWater,
+          );
+
+          const blowoutVolume = totalDosed + actualWater * 1.2;
+          console.log(
+            `🌊 Delivering ${blowoutVolume.toFixed(1)}ml payload to Pot A...`,
+          );
+
+          // Submersible Delivery Retry Loop
+          let remainingDeliver = blowoutVolume;
+          while (remainingDeliver > 0.5) {
+            await this.mqtt.waitForDevice("pump_node_1");
+            let startTime = Date.now();
+            try {
+              this.mqtt.sendCommand(
+                "deliver",
+                remainingDeliver,
+                "A",
+                this.mqtt.nextSeq(),
+              );
+              await this.mqtt.waitForIdle();
+              remainingDeliver = 0;
+            } catch (err) {
+              if (err.message === "OFFLINE_INTERRUPT") {
+                let elapsedMs = Date.now() - startTime;
+                let pumpedMl = (elapsedMs / 1000) * 50.0;
+                remainingDeliver -= pumpedMl;
+                if (remainingDeliver > 0.5)
+                  console.warn(
+                    `⚠️ Delivery interrupted. Remaining: ${remainingDeliver.toFixed(1)}ml. Waiting...`,
+                  );
+              } else throw err;
+            }
+          }
+          console.log(`✅ --- NUTRIENT SEQUENCE COMPLETE --- \n`);
+          this.isTicking = false;
+          return;
+        }
+      }
+
+      // ==========================================
+      // PHASE 3: pH CORRECTION (Only runs if EC is stable)
+      // ==========================================
+      if (livePH > TARGET_PH + 0.2 || livePH < TARGET_PH - 0.2) {
+        const type = livePH > TARGET_PH ? "pH_Down" : "pH_Up";
+        const topic = livePH > TARGET_PH ? "dose_ph_down" : "dose_ph_up";
+        console.log(`\n🚀 --- INITIATING ${type} CORRECTION ---`);
+
+        if (await Watchdog.isSafeToDose(type, 2.0)) {
+          const actualWater = await this.executePumpAndWait(
+            "Fresh_Water",
+            "dose_water",
+            250.0,
+          );
+          const actualAcid = await this.executePumpAndWait(type, topic, 2.0);
+
+          const blowoutVolume = (actualWater + actualAcid) * 1.2;
+          console.log(
+            `🌊 Delivering ${blowoutVolume.toFixed(1)}ml payload to Pot A...`,
+          );
+
+          // Submersible Delivery Retry Loop
+          let remainingDeliver = blowoutVolume;
+          while (remainingDeliver > 0.5) {
+            await this.mqtt.waitForDevice("pump_node_1");
+            let startTime = Date.now();
+            try {
+              this.mqtt.sendCommand(
+                "deliver",
+                remainingDeliver,
+                "A",
+                this.mqtt.nextSeq(),
+              );
+              await this.mqtt.waitForIdle();
+              remainingDeliver = 0;
+            } catch (err) {
+              if (err.message === "OFFLINE_INTERRUPT") {
+                let elapsedMs = Date.now() - startTime;
+                let pumpedMl = (elapsedMs / 1000) * 50.0;
+                remainingDeliver -= pumpedMl;
+                if (remainingDeliver > 0.5)
+                  console.warn(
+                    `⚠️ Delivery interrupted. Remaining: ${remainingDeliver.toFixed(1)}ml. Waiting...`,
+                  );
+              } else throw err;
+            }
+          }
+          console.log(`✅ pH Correction Complete.\n`);
+        } else {
+          console.log(`⏭️ pH Correction skipped by Watchdog.`);
+        }
+      }
+    } catch (err) {
+      console.error("❌ Recipe Engine Error:", err);
+      // Hard stop to prevent flooding on logic collapse
+      this.mqtt.sendCommand("stop", 0, "None", this.mqtt.nextSeq());
     } finally {
       this.isTicking = false;
     }
@@ -405,7 +708,7 @@ class RecipeEngine {
       if (!forceWaterTopOff)
         console.log(`📉 EC Deficit Detected (-${deficitPPM.toFixed(0)} PPM)`);
 
-      const rawDose = this.calculateDeficitMath(
+      const rawDose = this.calculateDeficit(
         targetPPM,
         deficitPPM,
         stage,
