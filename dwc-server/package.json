@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "clean": "node -e \"const fs=require('fs'); fs.rmSync('prisma/dev.db', {force:true})\" && npx prisma db push && npm run dev"
+    "clean": "node -e \"const fs=require('fs'); fs.rmSync('prisma/dev.db', {force:true})\" && npx prisma db push && npm run dev",
+    "test": "jest",
+    "test:watch": "jest --watchAll"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +23,8 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "jest": "^30.4.2",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
   }
 }
