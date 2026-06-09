@@ -361,11 +361,18 @@ class RecipeEngine {
       const type = livePH > TARGET_PH ? "pH_Down" : "pH_Up";
       const topic = livePH > TARGET_PH ? "dose_ph_down" : "dose_ph_up";
       console.log(`\n🚀 --- INITIATING ${type} CORRECTION ---`);
-      await this.executePumpAndWait("Fresh_Water", "dose_water", 250.0);
-      await this.executePumpAndWait(type, topic, 2.0);
-      this.mqtt.sendCommand("deliver", 252.0, "A");
-      await this.mqtt.waitForIdle();
-      console.log(`✅ pH Correction Complete.`);
+
+      if (await Watchdog.isSafeToDose(type, 2.0)) {
+        await this.executePumpAndWait("Water", "dose_water", 250.0);
+        const actualAcid = await this.executePumpAndWait(type, topic, 2.0);
+
+        const totalVolume = 250.0 + actualAcid;
+        this.mqtt.sendCommand("deliver", totalVolume, "A");
+        await this.mqtt.waitForIdle();
+        console.log(`✅ pH Correction Complete.`);
+      } else {
+        console.warn(`🚫 Aborting pH Correction: Watchdog blocked ${type}.`);
+      }
     } else {
       console.log(`✅ System Stable.`);
     }
