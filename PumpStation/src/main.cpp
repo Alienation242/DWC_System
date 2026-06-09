@@ -8,7 +8,7 @@ const int RELAY_PH_DOWN   = 13;
 const int RELAY_PH_UP     = 14;
 const int RELAY_BLOOM     = 15;
 const int RELAY_MICRO     = 16;
-const int RELAY_GRO_FIN   = 17;   // Gro/Finisher multiplex
+const int RELAY_GRO_FIN   = 17;   // Gro/Finisher multiplex (shared relay)
 const int RELAY_CALMAG    = 25;
 const int RELAY_RO_WATER  = 26;   // Fresh water
 const int RELAY_SUB_PUMP  = 18;
@@ -17,7 +17,17 @@ const int RELAY_VALVE_B   = 21;
 const int RELAY_VALVE_C   = 22;
 const int RELAY_VALVE_D   = 23;
 
-// ========== 2. NETWORK ==========
+// ========== 2. PUMP RATES (ml per second) ==========
+// SET THESE TO YOUR REAL HARDWARE VALUES:
+//   - Simulation (Wokwi): 20.0 ml/s (fast)
+//   - Real peristaltic:  2.0 ml/s (typical)
+//   - Real submersible: 50.0 ml/s (adjust)
+float PERISTALTIC_ML_PER_SEC = 20.0;   // change for real hardware
+float SUBMERSIBLE_ML_PER_SEC = 50.0;   // change for real hardware
+
+const unsigned long MAX_RUNTIME_MS = 300000;   // 5 min safety (increase if needed)
+
+// ========== 3. NETWORK ==========
 const char* ssid = "Wokwi-GUEST";
 const char* password = "";
 const char* mqtt_server = "test.mosquitto.org";
@@ -27,24 +37,13 @@ const char* TOPIC_STATUS = "kevin/dwc/pump_node_1/status";
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-// ========== 3. STATE ==========
+// ========== 4. STATE ==========
 bool isSystemBusy = false;
 int activeDosingPin = -1;
 int activeValvePin = -1;
 unsigned long actionEndTime = 0;
 
-// Pump rates (ml/s) – adjust for real hardware
-#ifdef WOKWI_SIMULATION
-  const float PERISTALTIC_ML_PER_SEC = 20.0;   // faster for sim
-  const float SUBMERSIBLE_ML_PER_SEC = 200.0;
-#else
-  const float PERISTALTIC_ML_PER_SEC = 2.0;
-  const float SUBMERSIBLE_ML_PER_SEC = 50.0;
-#endif
-
-const unsigned long MAX_RUNTIME_MS = 300000;   // 5 min safety
-
-// ========== 4. HARDWARE LOGIC ==========
+// ========== 5. HARDWARE LOGIC ==========
 void emergencyStop() {
   const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO,
                          RELAY_GRO_FIN, RELAY_CALMAG, RELAY_RO_WATER, RELAY_SUB_PUMP,
@@ -137,7 +136,7 @@ void checkTimers() {
   }
 }
 
-// ========== 5. MQTT CALLBACK ==========
+// ========== 6. MQTT CALLBACK ==========
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   String message;
   for (unsigned int i = 0; i < length; i++) message += (char)payload[i];
@@ -165,7 +164,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   else if (strcmp(action, "stop") == 0) emergencyStop();
 }
 
-// ========== 6. SETUP & LOOP ==========
+// ========== 7. SETUP & LOOP ==========
 void setup_wifi() {
   Serial.print("\nConnecting to Wi-Fi");
   WiFi.begin(ssid, password);
@@ -193,17 +192,16 @@ void setup() {
 }
 
 void loop() {
-  // 1. Always check hardware timers FIRST – this is critical for safety
+  // 1. Always check hardware timers FIRST – critical for safety
   checkTimers();
 
   // 2. Non‑blocking MQTT connection management
   if (!client.connected()) {
-    // Try to reconnect without long delays
     if (client.connect("ESP32_PumpNode_01")) {
       client.subscribe(TOPIC_COMMANDS);
       Serial.println("Listening for Brain Commands...");
     } else {
-      delay(100);   // tiny backoff, still allows checkTimers() to run often
+      delay(100);   // short backoff, allows checkTimers() to run
     }
   } else {
     client.loop();
