@@ -118,13 +118,25 @@ class RecipeEngine {
   async executeTick() {
     if (this.isTicking) {
       console.warn(
-        "⚠️ Engine is currently mixing a batch. Ignoring overlapping tick request.",
+        "⚠️ Engine is currently active. Ignoring overlapping tick request.",
       );
       return;
     }
 
-    this.isTicking = true; // Lock the engine
+    if (this.mqtt.deviceRegistry["pump_node_1"] === "offline") {
+      console.error("🛑 CRITICAL: Pump Manifold is OFFLINE. Aborting tick.");
+      return;
+    }
+    if (this.mqtt.deviceRegistry["sensor_node_1"] === "offline") {
+      console.error(
+        "🛑 CRITICAL: Sensor Node is OFFLINE. Aborting tick to prevent blind dosing.",
+      );
+      return;
+    }
+
+    this.isTicking = true;
     console.log("\n--- 🧠 [RECIPE ENGINE] TICK INITIATED ---");
+
     try {
       const state = await prisma.systemState.findUnique({ where: { id: 1 } });
       if (!state || state.automationMode === "MANUAL_OVERRIDE") return;
@@ -140,16 +152,13 @@ class RecipeEngine {
         return console.log("⏳ Waiting for fresh telemetry...");
 
       const currentStatus = recentLogs[0];
-
-      // 🚨 FLOOD PROTECTION
       if (currentStatus.isTankOverflowing) {
+        this.mqtt.sendCommand("stop");
         return console.error(
           "🛑 CRITICAL: Pot is overflowing! Aborting all pump operations.",
         );
       }
 
-      // 🔧 FIXED: GHOST SENSOR FILTER
-      // We explicitly remove dry readings from our math to prevent artificial EC drops
       const validLogs = recentLogs.filter((log) => !log.isTankEmpty);
 
       let livePH = 5.8;
@@ -185,7 +194,6 @@ class RecipeEngine {
         );
       }
 
-      // 🚨 EMPTY POT OVERRIDE (Top-off Required)
       if (currentStatus.isTankEmpty) {
         console.warn(
           "⚠️ POT EMPTY: Triggering emergency RO water top-off batch!",
@@ -213,6 +221,7 @@ class RecipeEngine {
       );
     } catch (error) {
       console.error("❌ Recipe Engine Error:", error);
+      this.mqtt.sendCommand("stop");
     } finally {
       this.isTicking = false;
     }
@@ -221,17 +230,44 @@ class RecipeEngine {
   async executePumpAndWait(pumpName, actionStr, amountMl) {
     if (amountMl <= 0.5) return 0;
 
-    // EXEMPT WATER FROM THE 15ML PER-TICK SAFETY CAP
     const isWater = pumpName.toLowerCase().includes("water");
     const safeMl = isWater ? amountMl : Math.min(15.0, amountMl);
+    const flowRate = 20.0; // Peristaltic hardware speed
 
     if (await Watchdog.isSafeToDose(pumpName, safeMl)) {
       console.log(
         `⏳ Locking Manifold: ${pumpName} (${safeMl.toFixed(1)}ml)...`,
       );
-      await this.mqtt.waitForIdle();
-      this.mqtt.sendCommand(actionStr, safeMl);
-      await this.mqtt.waitForIdle();
+
+      let remainingMl = safeMl;
+
+      while (remainingMl > 0.5) {
+        // 1. Wait for hardware to be online before attempting
+        await this.mqtt.waitForDevice("pump_node_1");
+
+        let startTime = Date.now();
+        try {
+          this.mqtt.sendCommand(actionStr, remainingMl);
+          await this.mqtt.waitForIdle();
+          remainingMl = 0; // Success! Break the loop.
+        } catch (err) {
+          if (err.message === "OFFLINE_INTERRUPT") {
+            // Calculate how much pumped before the crash
+            let elapsedMs = Date.now() - startTime;
+            let pumpedMl = (elapsedMs / 1000) * flowRate;
+            remainingMl -= pumpedMl;
+
+            if (remainingMl > 0.5) {
+              console.warn(
+                `⚠️ Network Crash! Pumped approx ${pumpedMl.toFixed(1)}ml. Pausing sequence... waiting for ESP32 to reconnect to push remaining ${remainingMl.toFixed(1)}ml.`,
+              );
+            }
+          } else {
+            throw err; // Real error, abort.
+          }
+        }
+      }
+
       await Watchdog.logSuccessfulDose(pumpName, safeMl);
       return safeMl;
     }
@@ -248,7 +284,16 @@ class RecipeEngine {
     forceWaterTopOff,
   ) {
     const deadbandPPM = Math.max(15, Math.min(50, targetPPM * 0.1));
+    const sysConfig = JSON.parse(
+      await fs
+        .readFile(SYSTEM_CONFIG_PATH, "utf8")
+        .catch(() => '{"mixing":{"maxMixingTankVolumeMl":5000}}'),
+    );
+    const MAX_BATCH_ML = sysConfig.mixing?.maxMixingTankVolumeMl || 5000.0;
 
+    // ==========================================
+    // 1. EC PRIORITY: DEFICIT (Nutrients Needed)
+    // ==========================================
     if (livePPM < targetPPM - deadbandPPM || forceWaterTopOff) {
       const deficitPPM = forceWaterTopOff ? 0 : targetPPM - livePPM;
       if (!forceWaterTopOff)
@@ -261,22 +306,19 @@ class RecipeEngine {
         currentDay,
         sysVol,
       );
-
       const nutConfig = JSON.parse(
-        await fs.readFile(NUTRIENT_PROFILE_PATH, "utf8"),
-      );
-      const sysConfig = JSON.parse(
-        await fs.readFile(SYSTEM_CONFIG_PATH, "utf8"),
+        await fs
+          .readFile(NUTRIENT_PROFILE_PATH, "utf8")
+          .catch(
+            () =>
+              '{"carrierFluid":"Fresh_Water","carrierVolumeMl":500,"mixingSequence":[]}',
+          ),
       );
 
-      // 🔧 FIXED: DECOUPLED PROPORTIONAL SCALING
-      const MAX_BATCH_ML = sysConfig.mixing?.maxMixingTankVolumeMl || 5000.0;
       const MAX_NUT_PER_TICK = 15.0;
-
       let nutrientScale = 1.0;
       let batchScale = 1.0;
 
-      // 1. Scale nutrients down to protect pumps (but leave water alone!)
       const highestNutrient = Math.max(
         rawDose.cal,
         rawDose.micro,
@@ -291,8 +333,6 @@ class RecipeEngine {
       const desiredCarrier = forceWaterTopOff
         ? MAX_BATCH_ML - 100
         : nutConfig.carrierVolumeMl;
-
-      // 2. Scale EVERYTHING down only if we are overflowing the 5L pot
       const theoreticalNutrientVol =
         (rawDose.cal +
           rawDose.micro +
@@ -306,7 +346,6 @@ class RecipeEngine {
         batchScale = MAX_BATCH_ML / theoreticalTotalBatch;
       }
 
-      // 3. Apply final limits
       const finalCarrierMl = desiredCarrier * batchScale;
       const finalNutScale = nutrientScale * batchScale;
 
@@ -316,7 +355,7 @@ class RecipeEngine {
       rawDose.bloom *= finalNutScale;
       rawDose.fin *= finalNutScale;
 
-      console.log(`\n🚀 --- INITIATING SCALED BATCH ---`);
+      console.log(`\n🚀 --- INITIATING NUTRIENT BATCH ---`);
       await this.executePumpAndWait(
         nutConfig.carrierFluid,
         "dose_water",
@@ -343,31 +382,86 @@ class RecipeEngine {
       }
 
       const totalVolume = finalCarrierMl + totalInjected;
-
-      // 🔧 FIXED: 120% DEAD-RECKONING BLOWOUT
       const blowoutVolume = totalVolume * 1.2;
 
       console.log(
-        `🌊 Step 3: Delivering ${totalVolume.toFixed(1)}ml (Blowing out ${blowoutVolume.toFixed(1)}ml) to Pot A...`,
+        `🌊 Delivering ${totalVolume.toFixed(1)}ml (Blowout ${blowoutVolume.toFixed(1)}ml) to Pot A...`,
       );
-      await this.mqtt.waitForIdle();
-      this.mqtt.sendCommand("deliver", blowoutVolume, "A");
-      await this.mqtt.waitForIdle();
+
+      let remainingDeliver = blowoutVolume;
+      while (remainingDeliver > 0.5) {
+        await this.mqtt.waitForDevice("pump_node_1");
+        let startTime = Date.now();
+        try {
+          this.mqtt.sendCommand("deliver", remainingDeliver, "A");
+          await this.mqtt.waitForIdle();
+          remainingDeliver = 0;
+        } catch (err) {
+          if (err.message === "OFFLINE_INTERRUPT") {
+            let elapsedMs = Date.now() - startTime;
+            let pumpedMl = (elapsedMs / 1000) * 50.0; // Submersible flow rate
+            remainingDeliver -= pumpedMl;
+            if (remainingDeliver > 0.5)
+              console.warn(
+                `⚠️ Delivery interrupted. Remaining: ${remainingDeliver.toFixed(1)}ml. Waiting to resume...`,
+              );
+          } else throw err;
+        }
+      }
       console.log(`✅ --- BATCH SEQUENCE COMPLETE --- \n`);
       return;
     }
 
+    // ==========================================
+    // 2. EC PRIORITY: EXCESS (Dilution Required)
+    // ==========================================
+    else if (livePPM > targetPPM + deadbandPPM && !forceWaterTopOff) {
+      const excessPPM = livePPM - targetPPM;
+      console.log(
+        `📈 EC Excess Detected (+${excessPPM.toFixed(0)} PPM) | Priority override: Diluting before pH.`,
+      );
+
+      // V_add = V_sys * ((PPM_live / PPM_target) - 1)
+      let dilutionMl = MAX_BATCH_ML;
+      if (targetPPM > 0) {
+        dilutionMl = sysVol * 1000 * (livePPM / targetPPM - 1);
+      }
+      if (dilutionMl > MAX_BATCH_ML) dilutionMl = MAX_BATCH_ML;
+
+      if (dilutionMl > 100) {
+        console.log(`\n🚀 --- INITIATING DILUTION BATCH ---`);
+        await this.executePumpAndWait("Fresh_Water", "dose_water", dilutionMl);
+
+        const blowoutVolume = dilutionMl * 1.2;
+        console.log(
+          `🌊 Delivering ${dilutionMl.toFixed(1)}ml pure water (Blowout ${blowoutVolume.toFixed(1)}ml) to Pot A...`,
+        );
+
+        await this.mqtt.waitForIdle();
+        this.mqtt.sendCommand("deliver", blowoutVolume, "A");
+        await this.mqtt.waitForIdle();
+
+        console.log(`✅ --- DILUTION SEQUENCE COMPLETE --- \n`);
+        return; // EXIT: Do not touch pH.
+      }
+    }
+
+    // ==========================================
+    // 3. pH CORRECTION (Only if EC is stable)
+    // ==========================================
     if (livePH > TARGET_PH + 0.2 || livePH < TARGET_PH - 0.2) {
       const type = livePH > TARGET_PH ? "pH_Down" : "pH_Up";
       const topic = livePH > TARGET_PH ? "dose_ph_down" : "dose_ph_up";
       console.log(`\n🚀 --- INITIATING ${type} CORRECTION ---`);
 
       if (await Watchdog.isSafeToDose(type, 2.0)) {
-        await this.executePumpAndWait("Water", "dose_water", 250.0);
+        await this.executePumpAndWait("Fresh_Water", "dose_water", 250.0);
         const actualAcid = await this.executePumpAndWait(type, topic, 2.0);
 
         const totalVolume = 250.0 + actualAcid;
-        this.mqtt.sendCommand("deliver", totalVolume, "A");
+        const blowoutVolume = totalVolume * 1.2;
+
+        this.mqtt.sendCommand("deliver", blowoutVolume, "A");
         await this.mqtt.waitForIdle();
         console.log(`✅ pH Correction Complete.`);
       } else {

@@ -34,6 +34,43 @@
     },
 
     {
+      "type": "wokwi-dc-dc-converter",
+      "id": "buck_5v",
+      "top": -400,
+      "left": 400,
+      "attrs": { "vin": "12", "vout": "5" }
+    },
+    {
+      "type": "wokwi-vcc",
+      "id": "relay_5v",
+      "top": -350,
+      "left": 400,
+      "attrs": { "voltage": "5" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt_buck",
+      "top": -420,
+      "left": 300,
+      "attrs": { "text": "Buck Converter 12V → 5V (for relay coils)" }
+    },
+
+    {
+      "type": "wokwi-capacitor",
+      "id": "cap_bulk",
+      "top": -100,
+      "left": -150,
+      "attrs": { "capacitance": "1000uF" }
+    },
+    {
+      "type": "wokwi-capacitor",
+      "id": "cap_ceramic",
+      "top": -50,
+      "left": -150,
+      "attrs": { "capacitance": "0.1uF" }
+    },
+
+    {
       "type": "wokwi-text",
       "id": "header1",
       "top": -350,
@@ -89,7 +126,6 @@
       "left": 100,
       "attrs": {}
     },
-
     {
       "type": "wokwi-led",
       "id": "led_ph_down",
@@ -139,7 +175,6 @@
       "left": 350,
       "attrs": { "color": "cyan" }
     },
-
     {
       "type": "wokwi-text",
       "id": "txt1",
@@ -189,7 +224,6 @@
       "left": 400,
       "attrs": { "text": "Pump: RO Water" }
     },
-
     {
       "type": "wokwi-text",
       "id": "header2",
@@ -218,7 +252,6 @@
       "left": 400,
       "attrs": { "text": "Submersible Main Pump" }
     },
-
     {
       "type": "wokwi-text",
       "id": "header3",
@@ -273,16 +306,16 @@
     ["esp:TX", "$serialMonitor:RX", "", []],
     ["esp:RX", "$serialMonitor:TX", "", []],
 
-    ["relay_ph_down:VCC", "esp:5V", "red", ["h-40", "v280"]],
-    ["relay_ph_up:VCC", "esp:5V", "red", ["h-45", "v180"]],
-    ["relay_bloom:VCC", "esp:5V", "red", ["h-50", "v80"]],
-    ["relay_micro:VCC", "esp:5V", "red", ["h-55", "v-20"]],
-    ["relay_gro_fin:VCC", "esp:5V", "red", ["h-60", "v-120"]],
-    ["relay_calmag:VCC", "esp:5V", "red", ["h-65", "v-220"]],
-    ["relay_ro_water:VCC", "esp:5V", "red", ["h-70", "v-320"]],
-    ["relay_sub_pump:VCC", "esp:5V", "red", ["h-75", "v-470"]],
-    ["relay_valve_a:VCC", "esp:5V", "red", ["h-80", "v-620"]],
-    ["relay_valve_b:VCC", "esp:5V", "red", ["h-85", "v-720"]],
+    ["relay_ph_down:VCC", "relay_5v:VCC", "red", ["h-40", "v280"]],
+    ["relay_ph_up:VCC", "relay_5v:VCC", "red", ["h-45", "v180"]],
+    ["relay_bloom:VCC", "relay_5v:VCC", "red", ["h-50", "v80"]],
+    ["relay_micro:VCC", "relay_5v:VCC", "red", ["h-55", "v-20"]],
+    ["relay_gro_fin:VCC", "relay_5v:VCC", "red", ["h-60", "v-120"]],
+    ["relay_calmag:VCC", "relay_5v:VCC", "red", ["h-65", "v-220"]],
+    ["relay_ro_water:VCC", "relay_5v:VCC", "red", ["h-70", "v-320"]],
+    ["relay_sub_pump:VCC", "relay_5v:VCC", "red", ["h-75", "v-470"]],
+    ["relay_valve_a:VCC", "relay_5v:VCC", "red", ["h-80", "v-620"]],
+    ["relay_valve_b:VCC", "relay_5v:VCC", "red", ["h-85", "v-720"]],
 
     ["relay_ph_down:GND", "esp:GND.2", "black", ["h-90", "v260"]],
     ["relay_ph_up:GND", "esp:GND.2", "black", ["h-95", "v160"]],
@@ -337,6 +370,15 @@
     ["led_ro_water:C", "gnd_12v:GND", "black", ["h210", "v510"]],
     ["led_sub_pump:C", "gnd_12v:GND", "black", ["h220", "v360"]],
     ["led_valve_a:C", "gnd_12v:GND", "black", ["h230", "v210"]],
-    ["led_valve_b:C", "gnd_12v:GND", "black", ["h240", "v110"]]
+    ["led_valve_b:C", "gnd_12v:GND", "black", ["h240", "v110"]],
+
+    ["esp:5V", "cap_bulk:1", "red", ["h-200", "v-100", "h50"]],
+    ["cap_bulk:2", "esp:GND.2", "black", ["h-200", "v-120", "h50"]],
+    ["esp:5V", "cap_ceramic:1", "red", ["h-210", "v-50", "h40"]],
+    ["cap_ceramic:2", "esp:GND.2", "black", ["h-210", "v-70", "h40"]],
+
+    ["pwr_12v:VCC", "buck_5v:VIN", "orange", ["h-250", "v-440", "h150"]],
+    ["gnd_12v:GND", "buck_5v:GND", "black", ["h-250", "v-460", "h150"]],
+    ["buck_5v:VOUT", "relay_5v:VCC", "red", ["h-250", "v-480", "h100"]]
   ]
 }

@@ -12,6 +12,7 @@ const char* ssid = "Wokwi-GUEST";
 const char* password = "";
 const char* mqtt_server = "test.mosquitto.org";
 const char* TOPIC_TELEMETRY = "kevin/dwc/sensor_node_1/telemetry";
+const char* TOPIC_CONNECTION = "kevin/dwc/sensor_node_1/connection";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -55,14 +56,14 @@ void setup_wifi() {
 
 void reconnect() {
   while (!client.connected()) {
-    if (client.connect("ESP32_SensorNode_01")) {
-      Serial.println("✅ MQTT Connected!");
+    Serial.print("Attempting MQTT connection...");
+    
+    if (client.connect("ESP32_SensorNode_01", NULL, NULL, TOPIC_CONNECTION, 1, true, "offline")) {
+      Serial.println("Connected!");
       
-      // FORCE IMMEDIATE UPDATE
-      // The second the board connects to the server, it sends its state.
-      // This guarantees the server is never blind, even on reboot.
-      sendTelemetry(); 
+      client.publish(TOPIC_CONNECTION, "online", true);
       
+      sendTelemetry();
     } else {
       delay(5000);
     }

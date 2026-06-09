@@ -8,6 +8,7 @@ const MQTT_BROKER = "mqtt://test.mosquitto.org";
 const TOPIC_TELEMETRY = "kevin/dwc/sensor_node_1/telemetry";
 const TOPIC_PUMP_STATUS = "kevin/dwc/pump_node_1/status";
 const TOPIC_PUMP_COMMANDS = "kevin/dwc/pump_node_1/commands";
+const TOPIC_CONNECTION_WILDCARD = "kevin/dwc/+/connection";
 
 class MqttService extends EventEmitter {
   constructor(io) {
@@ -16,10 +17,16 @@ class MqttService extends EventEmitter {
     this.client = mqtt.connect(MQTT_BROKER);
     this.hardwareStatus = "idle";
 
+    this.deviceRegistry = {
+      sensor_node_1: "offline",
+      pump_node_1: "offline",
+    };
+
     this.client.on("connect", () => {
       console.log("✅ Connected to MQTT Broker");
       this.client.subscribe(TOPIC_TELEMETRY);
       this.client.subscribe(TOPIC_PUMP_STATUS);
+      this.client.subscribe(TOPIC_CONNECTION_WILDCARD);
     });
 
     this.client.on("message", async (topic, message) => {
@@ -27,6 +34,19 @@ class MqttService extends EventEmitter {
         await this.handleTelemetry(message);
       } else if (topic === TOPIC_PUMP_STATUS) {
         this.handleHardwareStatus(message);
+      } else if (topic.endsWith("/connection")) {
+        const parts = topic.split("/");
+        const deviceName = parts[parts.length - 2];
+        const status = message.toString();
+
+        this.deviceRegistry[deviceName] = status;
+        console.log(
+          `📡 [NETWORK] ${deviceName} is now ${status.toUpperCase()}`,
+        );
+
+        this.emit("network_change", deviceName, status);
+
+        if (this.io) this.io.emit("network_update", this.deviceRegistry);
       }
     });
   }
@@ -34,9 +54,7 @@ class MqttService extends EventEmitter {
   handleHardwareStatus(message) {
     try {
       const payload = JSON.parse(message.toString());
-      this.hardwareStatus = payload.status; // "idle" or "busy"
-
-      // Emit the event so our RecipeEngine can await it!
+      this.hardwareStatus = payload.status;
       if (this.hardwareStatus === "idle") {
         this.emit("hardware_idle");
       }
@@ -45,37 +63,75 @@ class MqttService extends EventEmitter {
     }
   }
 
-  // A helper function that returns a Promise that resolves ONLY when the ESP32 is idle
+  // 🆕 ADDED: Allows the server to pause execution until a device reboots
+  waitForDevice(deviceName, timeoutMs = 900000) {
+    return new Promise((resolve, reject) => {
+      if (this.deviceRegistry[deviceName] === "online") return resolve();
+
+      const timeout = setTimeout(() => {
+        this.removeListener("network_change", onNetworkChange);
+        reject(new Error(`TIMEOUT: ${deviceName} did not reconnect.`));
+      }, timeoutMs);
+
+      const onNetworkChange = (dev, status) => {
+        if (dev === deviceName && status === "online") {
+          clearTimeout(timeout);
+          this.removeListener("network_change", onNetworkChange);
+          resolve();
+        }
+      };
+      this.on("network_change", onNetworkChange);
+    });
+  }
+
   waitForIdle(timeoutMs = 900000) {
     return new Promise((resolve, reject) => {
       if (this.hardwareStatus === "idle") return resolve();
+      if (this.deviceRegistry["pump_node_1"] === "offline") {
+        this.hardwareStatus = "idle";
+        return reject(new Error("OFFLINE_INTERRUPT"));
+      }
 
       const timeout = setTimeout(() => {
-        this.removeListener("hardware_idle", onIdle);
+        cleanup();
         console.error(
-          "⚠️ HARDWARE TIMEOUT: ESP32 unresponsive for 15 mins. Force unlocking.",
+          "⚠️ HARDWARE TIMEOUT: ESP32 unresponsive. Force unlocking.",
         );
         this.hardwareStatus = "idle";
         resolve();
       }, timeoutMs);
 
-      const onIdle = () => {
+      const cleanup = () => {
         clearTimeout(timeout);
+        this.removeListener("hardware_idle", onIdle);
+        this.removeListener("network_change", onNetworkChange);
+      };
+
+      const onIdle = () => {
+        cleanup();
         resolve();
       };
+
+      const onNetworkChange = (device, status) => {
+        if (device === "pump_node_1" && status === "offline") {
+          cleanup();
+          this.hardwareStatus = "idle";
+          reject(new Error("OFFLINE_INTERRUPT")); // 🔧 Standardized the crash error
+        }
+      };
+
       this.once("hardware_idle", onIdle);
+      this.on("network_change", onNetworkChange);
     });
   }
 
   async handleTelemetry(message) {
+    // ... [Keep existing handleTelemetry block exactly the same] ...
     try {
       const payload = JSON.parse(message.toString());
-
-      // 1. Convert to real values FIRST
       const realPH = await CalibrationService.convertPH(payload.rawPH);
       const realEC = await CalibrationService.convertEC(payload.rawEC);
 
-      // 2. Save BOTH raw and real data to the database
       await prisma.telemetryLog.create({
         data: {
           rawPH: payload.rawPH,
@@ -91,13 +147,8 @@ class MqttService extends EventEmitter {
         `💾 Telemetry Logged: pH ${realPH.toFixed(2)} | EC ${Math.round(realEC)}`,
       );
 
-      // 3. Broadcast to the Vue Dashboard instantly
       if (this.io) {
-        this.io.emit("telemetry_update", {
-          ...payload,
-          realPH,
-          realEC,
-        });
+        this.io.emit("telemetry_update", { ...payload, realPH, realEC });
       }
     } catch (error) {
       console.error("❌ Failed to process telemetry:", error.message);
@@ -107,7 +158,7 @@ class MqttService extends EventEmitter {
   sendCommand(action, ml = 0, target = "None") {
     const payload = JSON.stringify({ action, ml, target });
     this.client.publish(TOPIC_PUMP_COMMANDS, payload);
-    this.hardwareStatus = "busy"; // Optimistically lock the state
+    this.hardwareStatus = "busy";
     console.log(`📤 Command Sent: ${payload}`);
   }
 }

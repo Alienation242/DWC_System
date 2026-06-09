@@ -218,9 +218,9 @@ app.get("/api/status", (req, res) => {
   res.json({
     status: "Online",
     mode: "Headless DWC Server - Autonomous Loop Active",
+    hardware: hardwareComms.deviceRegistry,
   });
 });
-
 // ------------------ Start Server ------------------
 const PORT = process.env.PORT || 3000;
 
