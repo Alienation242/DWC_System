@@ -5,24 +5,25 @@
 
 // ========== 1. HARDWARE MAPPING ==========
 // Dosing Bank (Peristaltic)
-const int RELAY_PH_DOWN  = 13;
-const int RELAY_PH_UP    = 14;
-const int RELAY_BLOOM    = 15;
-const int RELAY_MICRO    = 16;
-const int RELAY_WATER    = 17; // Now used for the multiplexed Gro/Finisher swap
-const int RELAY_CALMAG   = 25; // NEW: CalMag Relay
+const int RELAY_PH_DOWN   = 13;
+const int RELAY_PH_UP     = 14;
+const int RELAY_BLOOM     = 15;
+const int RELAY_MICRO     = 16;
+const int RELAY_GRO_FIN   = 17; // The Multiplexed Gro/Finisher swap
+const int RELAY_CALMAG    = 25; // CalMag Relay
+const int RELAY_RO_WATER  = 26; // NEW: Dedicated RO Carrier Fluid Relay
 
 // Delivery Bank (Submersible & Solenoids)
-const int RELAY_SUB_PUMP = 18;
-const int RELAY_VALVE_A  = 19;
-const int RELAY_VALVE_B  = 21;
-const int RELAY_VALVE_C  = 22;
-const int RELAY_VALVE_D  = 23;
+const int RELAY_SUB_PUMP  = 18;
+const int RELAY_VALVE_A   = 19;
+const int RELAY_VALVE_B   = 21;
+const int RELAY_VALVE_C   = 22;
+const int RELAY_VALVE_D   = 23;
 
 // ========== 2. NETWORK CONFIGURATION ==========
-const char* ssid = "Wokwi-GUEST"; // Update for production
+const char* ssid = "Wokwi-GUEST"; 
 const char* password = "";
-const char* mqtt_server = "test.mosquitto.org"; // Update for production
+const char* mqtt_server = "test.mosquitto.org"; 
 const char* TOPIC_COMMANDS = "kevin/dwc/pump_node_1/commands";
 const char* TOPIC_STATUS = "kevin/dwc/pump_node_1/status";
 
@@ -32,21 +33,20 @@ PubSubClient client(espClient);
 // ========== 3. STATE MACHINE & CALIBRATION ==========
 bool isSystemBusy = false;
 
-// Active tracking
 int activeDosingPin = -1;
 int activeValvePin = -1;
 unsigned long actionEndTime = 0;
 
 // CALIBRATION: Flow Rates (mL per second)
 const float PERISTALTIC_ML_PER_SEC = 2.0;    
-const float SUBMERSIBLE_ML_PER_SEC = 50.0; // Needs calibration with your real grey pump
+const float SUBMERSIBLE_ML_PER_SEC = 50.0; 
 
-// FAIL-SAFE: Absolute maximum time any pump can run (e.g., 5 minutes = 300000ms)
+// FAIL-SAFE: Absolute maximum time any pump can run
 const unsigned long MAX_RUNTIME_MS = 300000; 
 
 // ========== 4. HARDWARE LOGIC ==========
 void emergencyStop() {
-  const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO, RELAY_WATER, RELAY_CALMAG, RELAY_SUB_PUMP, RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
+  const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO, RELAY_GRO_FIN, RELAY_CALMAG, RELAY_RO_WATER, RELAY_SUB_PUMP, RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
   for(int pin : allPins) {
     digitalWrite(pin, LOW);
   }
@@ -73,7 +73,7 @@ void startDosing(int pin, float ml, const char* pumpName) {
   if (ml <= 0) return;
 
   unsigned long durationMs = (unsigned long)((ml / PERISTALTIC_ML_PER_SEC) * 1000);
-  if (durationMs > MAX_RUNTIME_MS) durationMs = MAX_RUNTIME_MS; // Fail-safe limit
+  if (durationMs > MAX_RUNTIME_MS) durationMs = MAX_RUNTIME_MS; 
 
   isSystemBusy = true;
   publishStatus("busy", "running_pump");
@@ -91,7 +91,6 @@ void startDelivery(const char* target, float ml) {
   }
   if (ml <= 0) return;
 
-  // Determine Routing Valve
   if (strcmp(target, "A") == 0) activeValvePin = RELAY_VALVE_A;
   else if (strcmp(target, "B") == 0) activeValvePin = RELAY_VALVE_B;
   else if (strcmp(target, "C") == 0) activeValvePin = RELAY_VALVE_C;
@@ -102,13 +101,12 @@ void startDelivery(const char* target, float ml) {
   }
 
   unsigned long durationMs = (unsigned long)((ml / SUBMERSIBLE_ML_PER_SEC) * 1000);
-  if (durationMs > MAX_RUNTIME_MS) durationMs = MAX_RUNTIME_MS; // Fail-safe limit
+  if (durationMs > MAX_RUNTIME_MS) durationMs = MAX_RUNTIME_MS;
 
   isSystemBusy = true;
   publishStatus("busy", "running_pump");
   actionEndTime = millis() + durationMs;
 
-  // SEQUENCE CRITICAL: Open valve FIRST, allow mechanical clearance, then engage pressure pump
   digitalWrite(activeValvePin, HIGH);
   delay(150); 
   digitalWrite(RELAY_SUB_PUMP, HIGH);
@@ -120,16 +118,13 @@ void checkTimers() {
   if (!isSystemBusy) return;
 
   if (millis() >= actionEndTime) {
-    // Check if shutting down a dosing pump
     if (activeDosingPin != -1) {
       digitalWrite(activeDosingPin, LOW);
       activeDosingPin = -1;
       Serial.println("✅ Dosing complete.");
     }
     
-    // Check if shutting down delivery pump & valve
     if (activeValvePin != -1) {
-      // SEQUENCE CRITICAL: Stop pressure pump FIRST, allow pressure drop, then close valve
       digitalWrite(RELAY_SUB_PUMP, LOW);
       delay(150); 
       digitalWrite(activeValvePin, LOW);
@@ -161,7 +156,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   else if (strcmp(action, "dose_bloom") == 0) startDosing(RELAY_BLOOM, ml, "Bloom");
   else if (strcmp(action, "dose_micro") == 0) startDosing(RELAY_MICRO, ml, "Micro");
   else if (strcmp(action, "dose_calmag") == 0) startDosing(RELAY_CALMAG, ml, "CalMag"); 
-  else if (strcmp(action, "dose_gro_fin_relay") == 0) startDosing(RELAY_WATER, ml, "Gro/Finisher"); // The Multiplexed Relay
+  else if (strcmp(action, "dose_gro_fin_relay") == 0) startDosing(RELAY_GRO_FIN, ml, "Gro/Finisher"); 
+  else if (strcmp(action, "dose_water") == 0) startDosing(RELAY_RO_WATER, ml, "RO Carrier Fluid"); // ✅ PROPERLY MAPPED
   else if (strcmp(action, "deliver") == 0) {
     const char* target = doc["target"] | "Unknown";
     startDelivery(target, ml);
@@ -196,7 +192,7 @@ void reconnect() {
 void setup() {
   Serial.begin(115200);
   
-  const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO, RELAY_WATER, RELAY_CALMAG, RELAY_SUB_PUMP, RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
+  const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO, RELAY_GRO_FIN, RELAY_CALMAG, RELAY_RO_WATER, RELAY_SUB_PUMP, RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
   for(int pin : allPins) {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);

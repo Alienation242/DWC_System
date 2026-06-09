@@ -1,3 +1,4 @@
+const path = require("path");
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -7,6 +8,7 @@ const MqttService = require("./services/mqttService");
 const CalibrationService = require("./services/calibrationService");
 const RecipeEngine = require("./services/recipeEngine");
 
+const fs = require("fs").promises;
 const app = express();
 const server = http.createServer(app);
 const prisma = new PrismaClient();
@@ -100,6 +102,37 @@ app.post("/api/calibration", async (req, res) => {
     res.json(current);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// NUTRIENT BRAND CONFIGURATION API
+// ==========================================
+const NUTRIENT_PROFILE_PATH = path.join(
+  process.cwd(),
+  "config",
+  "nutrient_profile.json",
+);
+
+app.get("/api/nutrient-config", async (req, res) => {
+  try {
+    const data = await fs.readFile(NUTRIENT_PROFILE_PATH, "utf8");
+    res.json(JSON.parse(data));
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load nutrient profile." });
+  }
+});
+
+app.post("/api/nutrient-config", async (req, res) => {
+  try {
+    const newConfig = req.body;
+    await fs.writeFile(
+      NUTRIENT_PROFILE_PATH,
+      JSON.stringify(newConfig, null, 2),
+    );
+    res.json({ success: true, config: newConfig });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to save nutrient profile." });
   }
 });
 

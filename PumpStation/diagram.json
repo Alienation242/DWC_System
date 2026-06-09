@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "author": "DWC Batch & Delivery Station - Clean Routing",
-  "editor": "wokwi",
+  "author": "DWC Batch & Delivery Station - Corrected Relays",
+  "editor": "Alienation",
   "parts": [
     {
       "type": "board-esp32-devkit-c-v4",
@@ -21,7 +21,7 @@
     {
       "type": "wokwi-gnd",
       "id": "gnd_12v",
-      "top": 700,
+      "top": 800,
       "left": 650,
       "attrs": {}
     },
@@ -70,7 +70,7 @@
     },
     {
       "type": "wokwi-relay-module",
-      "id": "relay_water",
+      "id": "relay_gro_fin",
       "top": 100,
       "left": 100,
       "attrs": {}
@@ -79,6 +79,13 @@
       "type": "wokwi-relay-module",
       "id": "relay_calmag",
       "top": 200,
+      "left": 100,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay_ro_water",
+      "top": 300,
       "left": 100,
       "attrs": {}
     },
@@ -113,17 +120,24 @@
     },
     {
       "type": "wokwi-led",
-      "id": "led_water",
+      "id": "led_gro_fin",
       "top": 100,
       "left": 350,
-      "attrs": { "color": "cyan" }
+      "attrs": { "color": "green" }
     },
     {
       "type": "wokwi-led",
       "id": "led_calmag",
       "top": 200,
       "left": 350,
-      "attrs": { "color": "green" }
+      "attrs": { "color": "white" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_ro_water",
+      "top": 300,
+      "left": 350,
+      "attrs": { "color": "cyan" }
     },
 
     {
@@ -163,37 +177,44 @@
     },
     {
       "type": "wokwi-text",
-      "id": "txt_calmag",
+      "id": "txt6",
       "top": 210,
       "left": 400,
       "attrs": { "text": "Pump: CalMag" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt7",
+      "top": 310,
+      "left": 400,
+      "attrs": { "text": "Pump: RO Water" }
     },
 
     {
       "type": "wokwi-text",
       "id": "header2",
-      "top": 320,
+      "top": 420,
       "left": 100,
       "attrs": { "text": "--- 2. PRESSURE DELIVERY ---" }
     },
     {
       "type": "wokwi-relay-module",
       "id": "relay_sub_pump",
-      "top": 350,
+      "top": 450,
       "left": 100,
       "attrs": {}
     },
     {
       "type": "wokwi-led",
       "id": "led_sub_pump",
-      "top": 350,
+      "top": 450,
       "left": 350,
       "attrs": { "color": "yellow" }
     },
     {
       "type": "wokwi-text",
-      "id": "txt6",
-      "top": 360,
+      "id": "txt8",
+      "top": 460,
       "left": 400,
       "attrs": { "text": "Submersible Main Pump" }
     },
@@ -201,49 +222,49 @@
     {
       "type": "wokwi-text",
       "id": "header3",
-      "top": 470,
+      "top": 570,
       "left": 100,
       "attrs": { "text": "--- 3. ROUTING VALVES (Solenoids) ---" }
     },
     {
       "type": "wokwi-relay-module",
       "id": "relay_valve_a",
-      "top": 500,
+      "top": 600,
       "left": 100,
       "attrs": {}
     },
     {
       "type": "wokwi-relay-module",
       "id": "relay_valve_b",
-      "top": 600,
+      "top": 700,
       "left": 100,
       "attrs": {}
     },
     {
       "type": "wokwi-led",
       "id": "led_valve_a",
-      "top": 500,
+      "top": 600,
       "left": 350,
       "attrs": { "color": "white" }
     },
     {
       "type": "wokwi-led",
       "id": "led_valve_b",
-      "top": 600,
+      "top": 700,
       "left": 350,
       "attrs": { "color": "white" }
     },
     {
       "type": "wokwi-text",
-      "id": "txt7",
-      "top": 510,
+      "id": "txt9",
+      "top": 610,
       "left": 400,
       "attrs": { "text": "Valve: Route Pot A" }
     },
     {
       "type": "wokwi-text",
-      "id": "txt8",
-      "top": 610,
+      "id": "txt10",
+      "top": 710,
       "left": 400,
       "attrs": { "text": "Valve: Route Pot B" }
     }
@@ -256,38 +277,42 @@
     ["relay_ph_up:VCC", "esp:5V", "red", ["h-45", "v180"]],
     ["relay_bloom:VCC", "esp:5V", "red", ["h-50", "v80"]],
     ["relay_micro:VCC", "esp:5V", "red", ["h-55", "v-20"]],
-    ["relay_water:VCC", "esp:5V", "red", ["h-60", "v-120"]],
+    ["relay_gro_fin:VCC", "esp:5V", "red", ["h-60", "v-120"]],
     ["relay_calmag:VCC", "esp:5V", "red", ["h-65", "v-220"]],
-    ["relay_sub_pump:VCC", "esp:5V", "red", ["h-70", "v-370"]],
-    ["relay_valve_a:VCC", "esp:5V", "red", ["h-75", "v-520"]],
-    ["relay_valve_b:VCC", "esp:5V", "red", ["h-80", "v-620"]],
+    ["relay_ro_water:VCC", "esp:5V", "red", ["h-70", "v-320"]],
+    ["relay_sub_pump:VCC", "esp:5V", "red", ["h-75", "v-470"]],
+    ["relay_valve_a:VCC", "esp:5V", "red", ["h-80", "v-620"]],
+    ["relay_valve_b:VCC", "esp:5V", "red", ["h-85", "v-720"]],
 
-    ["relay_ph_down:GND", "esp:GND.2", "black", ["h-85", "v260"]],
-    ["relay_ph_up:GND", "esp:GND.2", "black", ["h-90", "v160"]],
-    ["relay_bloom:GND", "esp:GND.2", "black", ["h-95", "v60"]],
-    ["relay_micro:GND", "esp:GND.2", "black", ["h-100", "v-40"]],
-    ["relay_water:GND", "esp:GND.2", "black", ["h-105", "v-140"]],
-    ["relay_calmag:GND", "esp:GND.2", "black", ["h-110", "v-240"]],
-    ["relay_sub_pump:GND", "esp:GND.2", "black", ["h-115", "v-390"]],
-    ["relay_valve_a:GND", "esp:GND.2", "black", ["h-120", "v-540"]],
-    ["relay_valve_b:GND", "esp:GND.2", "black", ["h-125", "v-640"]],
+    ["relay_ph_down:GND", "esp:GND.2", "black", ["h-90", "v260"]],
+    ["relay_ph_up:GND", "esp:GND.2", "black", ["h-95", "v160"]],
+    ["relay_bloom:GND", "esp:GND.2", "black", ["h-100", "v60"]],
+    ["relay_micro:GND", "esp:GND.2", "black", ["h-105", "v-40"]],
+    ["relay_gro_fin:GND", "esp:GND.2", "black", ["h-110", "v-140"]],
+    ["relay_calmag:GND", "esp:GND.2", "black", ["h-115", "v-240"]],
+    ["relay_ro_water:GND", "esp:GND.2", "black", ["h-120", "v-340"]],
+    ["relay_sub_pump:GND", "esp:GND.2", "black", ["h-125", "v-490"]],
+    ["relay_valve_a:GND", "esp:GND.2", "black", ["h-130", "v-640"]],
+    ["relay_valve_b:GND", "esp:GND.2", "black", ["h-135", "v-740"]],
 
-    ["relay_ph_down:IN", "esp:13", "green", ["h-130", "v350"]],
-    ["relay_ph_up:IN", "esp:14", "green", ["h-135", "v230"]],
-    ["relay_bloom:IN", "esp:15", "green", ["h-140", "v110"]],
-    ["relay_micro:IN", "esp:16", "green", ["h-145", "v10"]],
-    ["relay_water:IN", "esp:17", "green", ["h-150", "v-90"]],
-    ["relay_calmag:IN", "esp:25", "green", ["h-155", "v-190"]],
-    ["relay_sub_pump:IN", "esp:18", "purple", ["h-160", "v-340"]],
-    ["relay_valve_a:IN", "esp:19", "purple", ["h-165", "v-490"]],
-    ["relay_valve_b:IN", "esp:21", "purple", ["h-170", "v-590"]],
+    ["relay_ph_down:IN", "esp:13", "green", ["h-140", "v350"]],
+    ["relay_ph_up:IN", "esp:14", "green", ["h-145", "v230"]],
+    ["relay_bloom:IN", "esp:15", "green", ["h-150", "v110"]],
+    ["relay_micro:IN", "esp:16", "green", ["h-155", "v10"]],
+    ["relay_gro_fin:IN", "esp:17", "green", ["h-160", "v-90"]],
+    ["relay_calmag:IN", "esp:25", "green", ["h-165", "v-190"]],
+    ["relay_ro_water:IN", "esp:26", "cyan", ["h-170", "v-290"]],
+    ["relay_sub_pump:IN", "esp:18", "purple", ["h-175", "v-440"]],
+    ["relay_valve_a:IN", "esp:19", "purple", ["h-180", "v-590"]],
+    ["relay_valve_b:IN", "esp:21", "purple", ["h-185", "v-690"]],
 
     ["relay_ph_down:NO", "led_ph_down:A", "orange", ["h20"]],
     ["relay_ph_up:NO", "led_ph_up:A", "orange", ["h20"]],
     ["relay_bloom:NO", "led_bloom:A", "orange", ["h20"]],
     ["relay_micro:NO", "led_micro:A", "orange", ["h20"]],
-    ["relay_water:NO", "led_water:A", "orange", ["h20"]],
+    ["relay_gro_fin:NO", "led_gro_fin:A", "orange", ["h20"]],
     ["relay_calmag:NO", "led_calmag:A", "orange", ["h20"]],
+    ["relay_ro_water:NO", "led_ro_water:A", "orange", ["h20"]],
     ["relay_sub_pump:NO", "led_sub_pump:A", "orange", ["h20"]],
     ["relay_valve_a:NO", "led_valve_a:A", "orange", ["h20"]],
     ["relay_valve_b:NO", "led_valve_b:A", "orange", ["h20"]],
@@ -296,20 +321,22 @@
     ["relay_ph_up:COM", "pwr_12v:VCC", "orange", ["h40", "v-260"]],
     ["relay_bloom:COM", "pwr_12v:VCC", "orange", ["h50", "v-360"]],
     ["relay_micro:COM", "pwr_12v:VCC", "orange", ["h60", "v-460"]],
-    ["relay_water:COM", "pwr_12v:VCC", "orange", ["h70", "v-560"]],
+    ["relay_gro_fin:COM", "pwr_12v:VCC", "orange", ["h70", "v-560"]],
     ["relay_calmag:COM", "pwr_12v:VCC", "orange", ["h80", "v-660"]],
-    ["relay_sub_pump:COM", "pwr_12v:VCC", "orange", ["h90", "v-810"]],
-    ["relay_valve_a:COM", "pwr_12v:VCC", "orange", ["h100", "v-960"]],
-    ["relay_valve_b:COM", "pwr_12v:VCC", "orange", ["h110", "v-1060"]],
+    ["relay_ro_water:COM", "pwr_12v:VCC", "orange", ["h90", "v-760"]],
+    ["relay_sub_pump:COM", "pwr_12v:VCC", "orange", ["h100", "v-910"]],
+    ["relay_valve_a:COM", "pwr_12v:VCC", "orange", ["h110", "v-1060"]],
+    ["relay_valve_b:COM", "pwr_12v:VCC", "orange", ["h120", "v-1160"]],
 
-    ["led_ph_down:C", "gnd_12v:GND", "black", ["h150", "v1010"]],
-    ["led_ph_up:C", "gnd_12v:GND", "black", ["h160", "v910"]],
-    ["led_bloom:C", "gnd_12v:GND", "black", ["h170", "v810"]],
-    ["led_micro:C", "gnd_12v:GND", "black", ["h180", "v710"]],
-    ["led_water:C", "gnd_12v:GND", "black", ["h190", "v610"]],
-    ["led_calmag:C", "gnd_12v:GND", "black", ["h200", "v510"]],
-    ["led_sub_pump:C", "gnd_12v:GND", "black", ["h210", "v360"]],
-    ["led_valve_a:C", "gnd_12v:GND", "black", ["h220", "v210"]],
-    ["led_valve_b:C", "gnd_12v:GND", "black", ["h230", "v110"]]
+    ["led_ph_down:C", "gnd_12v:GND", "black", ["h150", "v1110"]],
+    ["led_ph_up:C", "gnd_12v:GND", "black", ["h160", "v1010"]],
+    ["led_bloom:C", "gnd_12v:GND", "black", ["h170", "v910"]],
+    ["led_micro:C", "gnd_12v:GND", "black", ["h180", "v810"]],
+    ["led_gro_fin:C", "gnd_12v:GND", "black", ["h190", "v710"]],
+    ["led_calmag:C", "gnd_12v:GND", "black", ["h200", "v610"]],
+    ["led_ro_water:C", "gnd_12v:GND", "black", ["h210", "v510"]],
+    ["led_sub_pump:C", "gnd_12v:GND", "black", ["h220", "v360"]],
+    ["led_valve_a:C", "gnd_12v:GND", "black", ["h230", "v210"]],
+    ["led_valve_b:C", "gnd_12v:GND", "black", ["h240", "v110"]]
   ]
 }
