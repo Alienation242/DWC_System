@@ -275,7 +275,7 @@ void setup() {
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setCallback(mqttCallback);
-  client.setKeepAlive(60);
+  client.setKeepAlive(5);
 }
 
 void loop() {

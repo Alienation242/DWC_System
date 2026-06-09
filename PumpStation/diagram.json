@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "author": "Alienation",
+  "author": "DWC Batch Station - Optically Isolated",
   "editor": "wokwi",
   "parts": [
     {
@@ -10,7 +10,6 @@
       "left": -250,
       "attrs": {}
     },
-
     {
       "type": "wokwi-vcc",
       "id": "pwr_12v",
@@ -48,25 +47,63 @@
       "attrs": { "voltage": "5" }
     },
     {
+      "type": "wokwi-gnd",
+      "id": "dirty_gnd",
+      "top": -300,
+      "left": 400,
+      "attrs": {}
+    },
+
+    {
       "type": "wokwi-text",
       "id": "txt_buck",
       "top": -420,
       "left": 300,
-      "attrs": { "text": "Buck Converter 12V → 5V (for relay coils)" }
+      "attrs": { "text": "Buck Converter 12V -> 5V (for relay coils)" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt_iso1",
+      "top": -450,
+      "left": -250,
+      "attrs": { "text": "CLEAN LOGIC POWER (USB)" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt_iso2",
+      "top": -450,
+      "left": 350,
+      "attrs": { "text": "DIRTY COIL POWER (Buck)" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt_iso3",
+      "top": -280,
+      "left": 350,
+      "attrs": { "text": "STAR GROUND POINT" }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "txt_iso4",
+      "top": 850,
+      "left": 100,
+      "attrs": {
+        "text": "REAL LIFE BUILD NOTE: Remove JD-VCC jumper! ESP 5V -> VCC. Buck 5V -> JD-VCC."
+      }
     },
 
     {
       "type": "wokwi-capacitor",
       "id": "cap_bulk",
-      "top": -100,
-      "left": -150,
+      "top": -350,
+      "left": 250,
       "attrs": { "capacitance": "1000uF" }
     },
     {
       "type": "wokwi-capacitor",
       "id": "cap_ceramic",
-      "top": -50,
-      "left": -150,
+      "top": -350,
+      "left": 300,
       "attrs": { "capacitance": "0.1uF" }
     },
 
@@ -126,6 +163,7 @@
       "left": 100,
       "attrs": {}
     },
+
     {
       "type": "wokwi-led",
       "id": "led_ph_down",
@@ -175,6 +213,7 @@
       "left": 350,
       "attrs": { "color": "cyan" }
     },
+
     {
       "type": "wokwi-text",
       "id": "txt1",
@@ -224,6 +263,7 @@
       "left": 400,
       "attrs": { "text": "Pump: RO Water" }
     },
+
     {
       "type": "wokwi-text",
       "id": "header2",
@@ -252,6 +292,7 @@
       "left": 400,
       "attrs": { "text": "Submersible Main Pump" }
     },
+
     {
       "type": "wokwi-text",
       "id": "header3",
@@ -317,16 +358,16 @@
     ["relay_valve_a:VCC", "relay_5v:VCC", "red", ["h-80", "v-620"]],
     ["relay_valve_b:VCC", "relay_5v:VCC", "red", ["h-85", "v-720"]],
 
-    ["relay_ph_down:GND", "esp:GND.2", "black", ["h-90", "v260"]],
-    ["relay_ph_up:GND", "esp:GND.2", "black", ["h-95", "v160"]],
-    ["relay_bloom:GND", "esp:GND.2", "black", ["h-100", "v60"]],
-    ["relay_micro:GND", "esp:GND.2", "black", ["h-105", "v-40"]],
-    ["relay_gro_fin:GND", "esp:GND.2", "black", ["h-110", "v-140"]],
-    ["relay_calmag:GND", "esp:GND.2", "black", ["h-115", "v-240"]],
-    ["relay_ro_water:GND", "esp:GND.2", "black", ["h-120", "v-340"]],
-    ["relay_sub_pump:GND", "esp:GND.2", "black", ["h-125", "v-490"]],
-    ["relay_valve_a:GND", "esp:GND.2", "black", ["h-130", "v-640"]],
-    ["relay_valve_b:GND", "esp:GND.2", "black", ["h-135", "v-740"]],
+    ["relay_ph_down:GND", "dirty_gnd:GND", "black", ["h-90", "v260"]],
+    ["relay_ph_up:GND", "dirty_gnd:GND", "black", ["h-95", "v160"]],
+    ["relay_bloom:GND", "dirty_gnd:GND", "black", ["h-100", "v60"]],
+    ["relay_micro:GND", "dirty_gnd:GND", "black", ["h-105", "v-40"]],
+    ["relay_gro_fin:GND", "dirty_gnd:GND", "black", ["h-110", "v-140"]],
+    ["relay_calmag:GND", "dirty_gnd:GND", "black", ["h-115", "v-240"]],
+    ["relay_ro_water:GND", "dirty_gnd:GND", "black", ["h-120", "v-340"]],
+    ["relay_sub_pump:GND", "dirty_gnd:GND", "black", ["h-125", "v-490"]],
+    ["relay_valve_a:GND", "dirty_gnd:GND", "black", ["h-130", "v-640"]],
+    ["relay_valve_b:GND", "dirty_gnd:GND", "black", ["h-135", "v-740"]],
 
     ["relay_ph_down:IN", "esp:13", "green", ["h-140", "v350"]],
     ["relay_ph_up:IN", "esp:14", "green", ["h-145", "v230"]],
@@ -372,13 +413,16 @@
     ["led_valve_a:C", "gnd_12v:GND", "black", ["h230", "v210"]],
     ["led_valve_b:C", "gnd_12v:GND", "black", ["h240", "v110"]],
 
-    ["esp:5V", "cap_bulk:1", "red", ["h-200", "v-100", "h50"]],
-    ["cap_bulk:2", "esp:GND.2", "black", ["h-200", "v-120", "h50"]],
-    ["esp:5V", "cap_ceramic:1", "red", ["h-210", "v-50", "h40"]],
-    ["cap_ceramic:2", "esp:GND.2", "black", ["h-210", "v-70", "h40"]],
+    ["buck_5v:VOUT", "cap_bulk:1", "red", []],
+    ["buck_5v:GND", "cap_bulk:2", "black", []],
+    ["buck_5v:VOUT", "cap_ceramic:1", "red", []],
+    ["buck_5v:GND", "cap_ceramic:2", "black", []],
 
     ["pwr_12v:VCC", "buck_5v:VIN", "orange", ["h-250", "v-440", "h150"]],
     ["gnd_12v:GND", "buck_5v:GND", "black", ["h-250", "v-460", "h150"]],
-    ["buck_5v:VOUT", "relay_5v:VCC", "red", ["h-250", "v-480", "h100"]]
+    ["buck_5v:VOUT", "relay_5v:VCC", "red", ["h-250", "v-480", "h100"]],
+    ["buck_5v:GND", "dirty_gnd:GND", "black", []],
+
+    ["esp:GND.2", "dirty_gnd:GND", "black", ["v-150", "h400"]]
   ]
 }
