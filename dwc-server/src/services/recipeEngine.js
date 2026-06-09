@@ -21,6 +21,92 @@ class RecipeEngine {
     this.isTicking = false;
   }
 
+  waitForDoseComplete(seq, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("DOSE_COMPLETE_TIMEOUT")),
+        timeoutMs,
+      );
+      const handler = (message) => {
+        if (message.seq === seq && message.status === "dose_complete") {
+          clearTimeout(timeout);
+          this.mqtt.removeListener("pump_message", handler);
+          resolve({ type: "complete", volume: message.volume_ml });
+        }
+      };
+      this.mqtt.on("pump_message", handler);
+    });
+  }
+
+  async executePumpAndWait(pumpName, actionStr, amountMl, batchId = null) {
+    if (amountMl <= 0.5) return 0;
+    const isWater = pumpName.toLowerCase().includes("water");
+    const safeMl = isWater ? amountMl : Math.min(15.0, amountMl);
+    const flowRate = 20.0; // from config
+
+    if (!(await Watchdog.isSafeToDose(pumpName, safeMl))) return 0;
+
+    console.log(`⏳ Locking Manifold: ${pumpName} (${safeMl.toFixed(1)}ml)...`);
+
+    let remainingMl = safeMl;
+    let retries = 0;
+    const MAX_RETRIES = 3;
+
+    while (remainingMl > 0.5 && retries < MAX_RETRIES) {
+      await this.mqtt.waitForDevice("pump_node_1");
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const seq = this.mqtt.nextSeq();
+      const startTime = Date.now();
+
+      try {
+        this.mqtt.sendCommand(actionStr, remainingMl);
+        await this.mqtt.waitForBusy(10000);
+
+        const result = await Promise.race([
+          this.waitForDoseComplete(
+            seq,
+            2 * (remainingMl / flowRate) * 1000 + 10000,
+          ),
+          this.mqtt.waitForIdle().then(() => ({ type: "idle" })),
+        ]);
+
+        if (result.type === "complete") {
+          remainingMl -= result.volume;
+          if (remainingMl <= 0.5) break;
+          console.log(
+            `📦 Pump reported ${result.volume}ml dosed, remaining ${remainingMl.toFixed(1)}ml`,
+          );
+        } else {
+          remainingMl = 0;
+          break;
+        }
+      } catch (err) {
+        if (err.message === "OFFLINE_INTERRUPT") {
+          let elapsedMs = Date.now() - startTime;
+          let pumpedMl = (elapsedMs / 1000) * flowRate;
+          remainingMl -= pumpedMl;
+          retries++;
+          console.warn(
+            `⚠️ Disconnect after ${elapsedMs}ms, pumped ~${pumpedMl.toFixed(1)}ml, remaining ${remainingMl.toFixed(1)}ml. Retry ${retries}/${MAX_RETRIES}`,
+          );
+          continue;
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    if (remainingMl > 0.5) {
+      throw new Error(
+        `Failed to dose ${pumpName} after ${MAX_RETRIES} retries, ${remainingMl.toFixed(1)}ml remaining`,
+      );
+    }
+
+    await Watchdog.logSuccessfulDose(pumpName, safeMl);
+    return safeMl;
+  }
+
   resolveCurve(param, progress) {
     if (!param) return 0;
     progress = Math.max(0, Math.min(1, progress));
@@ -227,51 +313,102 @@ class RecipeEngine {
     }
   }
 
-  async executePumpAndWait(pumpName, actionStr, amountMl) {
+  async executePumpAndWait(pumpName, actionStr, amountMl, batchId = null) {
     if (amountMl <= 0.5) return 0;
     const isWater = pumpName.toLowerCase().includes("water");
     const safeMl = isWater ? amountMl : Math.min(15.0, amountMl);
-    const flowRate = 20.0;
+    const flowRate = 20.0; // from config
 
-    if (await Watchdog.isSafeToDose(pumpName, safeMl)) {
-      console.log(
-        `⏳ Locking Manifold: ${pumpName} (${safeMl.toFixed(1)}ml)...`,
-      );
+    if (!(await Watchdog.isSafeToDose(pumpName, safeMl))) return 0;
 
-      let remainingMl = safeMl;
+    console.log(`⏳ Locking Manifold: ${pumpName} (${safeMl.toFixed(1)}ml)...`);
 
-      while (remainingMl > 0.5) {
-        await this.mqtt.waitForDevice("pump_node_1");
-        // Small delay to let the pump's MQTT loop stabilise after reconnect
-        await new Promise((resolve) => setTimeout(resolve, 500));
+    let remainingMl = safeMl;
+    let retries = 0;
+    const MAX_RETRIES = 3;
 
-        let startTime = Date.now();
-        try {
-          this.mqtt.sendCommand(actionStr, remainingMl);
-          // Wait for pump to confirm it is busy (command received)
-          await this.mqtt.waitForBusy(10000);
-          // Wait for pump to finish
-          await this.mqtt.waitForIdle();
-          remainingMl = 0;
-        } catch (err) {
-          if (err.message === "OFFLINE_INTERRUPT") {
-            let elapsedMs = Date.now() - startTime;
-            let pumpedMl = (elapsedMs / 1000) * flowRate;
-            remainingMl -= pumpedMl;
-            if (remainingMl > 0.5) {
-              console.warn(
-                `⚠️ Network Crash! Pumped approx ${pumpedMl.toFixed(1)}ml. Waiting for reconnect to push remaining ${remainingMl.toFixed(1)}ml.`,
-              );
-            }
-          } else {
-            throw err;
+    while (remainingMl > 0.5 && retries < MAX_RETRIES) {
+      await this.mqtt.waitForDevice("pump_node_1");
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const seq = this.mqtt.nextSeq(); // get new sequence number
+      const startTime = Date.now();
+      let doseCompleted = false;
+
+      try {
+        this.mqtt.sendCommand(actionStr, remainingMl);
+
+        // Wait for pump to confirm it received the command (busy)
+        await this.mqtt.waitForBusy(10000);
+
+        // Wait for either dose_complete or OFFLINE_INTERRUPT
+        const result = await Promise.race([
+          this.waitForDoseComplete(
+            seq,
+            2 * (remainingMl / flowRate) * 1000 + 10000,
+          ),
+          this.mqtt.waitForIdle().then(() => ({ type: "idle" })), // fallback
+        ]);
+
+        if (result.type === "complete") {
+          // Pump reported exact volume pumped
+          remainingMl -= result.volume;
+          if (remainingMl <= 0.5) {
+            doseCompleted = true;
+            break;
           }
+          // Otherwise, continue loop with remaining volume
+          console.log(
+            `📦 Pump reported ${result.volume}ml dosed, remaining ${remainingMl.toFixed(1)}ml`,
+          );
+        } else {
+          // Got idle without complete – assume success
+          remainingMl = 0;
+          doseCompleted = true;
+          break;
+        }
+      } catch (err) {
+        if (err.message === "OFFLINE_INTERRUPT") {
+          let elapsedMs = Date.now() - startTime;
+          let pumpedMl = (elapsedMs / 1000) * flowRate;
+          remainingMl -= pumpedMl;
+          retries++;
+          console.warn(
+            `⚠️ Disconnect after ${elapsedMs}ms, pumped ~${pumpedMl.toFixed(1)}ml, remaining ${remainingMl.toFixed(1)}ml. Retry ${retries}/${MAX_RETRIES}`,
+          );
+          continue;
+        } else {
+          throw err;
         }
       }
-      await Watchdog.logSuccessfulDose(pumpName, safeMl);
-      return safeMl;
     }
-    return 0;
+
+    if (remainingMl > 0.5) {
+      throw new Error(
+        `Failed to dose ${pumpName} after ${MAX_RETRIES} retries, ${remainingMl.toFixed(1)}ml remaining`,
+      );
+    }
+
+    await Watchdog.logSuccessfulDose(pumpName, safeMl);
+    return safeMl;
+  }
+
+  // Helper: wait for a dose_complete message with matching seq
+  waitForDoseComplete(seq, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("DOSE_COMPLETE_TIMEOUT")),
+        timeoutMs,
+      );
+      const handler = (message) => {
+        if (message.seq === seq && message.status === "dose_complete") {
+          clearTimeout(timeout);
+          this.mqtt.removeListener("pump_message", handler);
+          resolve({ type: "complete", volume: message.volume_ml });
+        }
+      };
+      this.mqtt.on("pump_message", handler);
+    });
   }
 
   async evaluateAndDose(
@@ -430,19 +567,51 @@ class RecipeEngine {
 
       if (dilutionMl > 100) {
         console.log(`\n🚀 --- INITIATING DILUTION BATCH ---`);
-        await this.executePumpAndWait("Fresh_Water", "dose_water", dilutionMl);
 
-        const blowoutVolume = dilutionMl * 1.2;
-        console.log(
-          `🌊 Delivering ${dilutionMl.toFixed(1)}ml pure water (Blowout ${blowoutVolume.toFixed(1)}ml) to Pot A...`,
-        );
+        // Create batch record
+        const batch = await prisma.batchState.create({
+          data: {
+            active: true,
+            batchType: "DILUTION",
+            totalWaterMl: dilutionMl,
+            confirmedWaterMl: 0,
+            startedAt: new Date(),
+          },
+        });
 
-        await this.mqtt.waitForIdle();
-        this.mqtt.sendCommand("deliver", blowoutVolume, "A");
-        await this.mqtt.waitForIdle();
+        try {
+          await this.executePumpAndWait(
+            "Fresh_Water",
+            "dose_water",
+            dilutionMl,
+          );
+          await prisma.batchState.update({
+            where: { id: batch.id },
+            data: { confirmedWaterMl: dilutionMl },
+          });
 
-        console.log(`✅ --- DILUTION SEQUENCE COMPLETE --- \n`);
-        return; // EXIT: Do not touch pH.
+          const blowoutVolume = dilutionMl * 1.2;
+          console.log(
+            `🌊 Delivering ${dilutionMl.toFixed(1)}ml pure water (Blowout ${blowoutVolume.toFixed(1)}ml) to Pot A...`,
+          );
+
+          await this.mqtt.waitForIdle();
+          this.mqtt.sendCommand("deliver", blowoutVolume, "A");
+          await this.mqtt.waitForIdle();
+
+          await prisma.batchState.update({
+            where: { id: batch.id },
+            data: { active: false },
+          });
+          console.log(`✅ --- DILUTION SEQUENCE COMPLETE --- \n`);
+          return;
+        } catch (err) {
+          await prisma.batchState.update({
+            where: { id: batch.id },
+            data: { active: false },
+          });
+          throw err;
+        }
       }
     }
 

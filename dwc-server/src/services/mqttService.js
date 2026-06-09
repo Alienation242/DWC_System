@@ -16,6 +16,7 @@ class MqttService extends EventEmitter {
     this.io = io;
     this.client = mqtt.connect(MQTT_BROKER);
     this.hardwareStatus = "idle";
+    this.seqCounter = 0;
 
     this.deviceRegistry = {
       sensor_node_1: "offline",
@@ -45,10 +46,13 @@ class MqttService extends EventEmitter {
         );
 
         this.emit("network_change", deviceName, status);
-
         if (this.io) this.io.emit("network_update", this.deviceRegistry);
       }
     });
+  }
+
+  nextSeq() {
+    return ++this.seqCounter;
   }
 
   handleHardwareStatus(message) {
@@ -56,6 +60,13 @@ class MqttService extends EventEmitter {
       const payload = JSON.parse(message.toString());
       this.hardwareStatus = payload.status;
       this.emit("hardware_status", payload.status);
+      if (payload.status === "dose_complete") {
+        this.emit("pump_message", {
+          seq: payload.seq,
+          status: "dose_complete",
+          volume_ml: payload.volume_ml,
+        });
+      }
       if (this.hardwareStatus === "idle") {
         this.emit("hardware_idle");
       }
@@ -67,12 +78,10 @@ class MqttService extends EventEmitter {
   waitForDevice(deviceName, timeoutMs = 900000) {
     return new Promise((resolve, reject) => {
       if (this.deviceRegistry[deviceName] === "online") return resolve();
-
       const timeout = setTimeout(() => {
         this.removeListener("network_change", onNetworkChange);
         reject(new Error(`TIMEOUT: ${deviceName} did not reconnect.`));
       }, timeoutMs);
-
       const onNetworkChange = (dev, status) => {
         if (dev === deviceName && status === "online") {
           clearTimeout(timeout);
@@ -91,7 +100,6 @@ class MqttService extends EventEmitter {
         this.hardwareStatus = "idle";
         return reject(new Error("OFFLINE_INTERRUPT"));
       }
-
       const timeout = setTimeout(() => {
         cleanup();
         console.error(
@@ -100,26 +108,22 @@ class MqttService extends EventEmitter {
         this.hardwareStatus = "idle";
         resolve();
       }, timeoutMs);
-
       const cleanup = () => {
         clearTimeout(timeout);
         this.removeListener("hardware_idle", onIdle);
         this.removeListener("network_change", onNetworkChange);
       };
-
       const onIdle = () => {
         cleanup();
         resolve();
       };
-
       const onNetworkChange = (device, status) => {
         if (device === "pump_node_1" && status === "offline") {
           cleanup();
           this.hardwareStatus = "idle";
-          reject(new Error("OFFLINE_INTERRUPT")); // 🔧 Standardized the crash error
+          reject(new Error("OFFLINE_INTERRUPT"));
         }
       };
-
       this.once("hardware_idle", onIdle);
       this.on("network_change", onNetworkChange);
     });
@@ -128,35 +132,29 @@ class MqttService extends EventEmitter {
   waitForBusy(timeoutMs = 30000) {
     return new Promise((resolve, reject) => {
       if (this.hardwareStatus === "busy") return resolve();
-
       const timeout = setTimeout(() => {
         cleanup();
         reject(new Error("TIMEOUT: Pump did not become busy"));
       }, timeoutMs);
-
       const onStatusChange = (status) => {
         if (status === "busy") {
           cleanup();
           resolve();
         }
       };
-
       const cleanup = () => {
         clearTimeout(timeout);
         this.removeListener("hardware_status", onStatusChange);
       };
-
       this.on("hardware_status", onStatusChange);
     });
   }
 
   async handleTelemetry(message) {
-    // ... [Keep existing handleTelemetry block exactly the same] ...
     try {
       const payload = JSON.parse(message.toString());
       const realPH = await CalibrationService.convertPH(payload.rawPH);
       const realEC = await CalibrationService.convertEC(payload.rawEC);
-
       await prisma.telemetryLog.create({
         data: {
           rawPH: payload.rawPH,
@@ -167,11 +165,9 @@ class MqttService extends EventEmitter {
           isTankOverflowing: payload.isTankOverflowing || false,
         },
       });
-
       console.log(
         `💾 Telemetry Logged: pH ${realPH.toFixed(2)} | EC ${Math.round(realEC)}`,
       );
-
       if (this.io) {
         this.io.emit("telemetry_update", { ...payload, realPH, realEC });
       }
@@ -181,9 +177,10 @@ class MqttService extends EventEmitter {
   }
 
   sendCommand(action, ml = 0, target = "None") {
-    const payload = JSON.stringify({ action, ml, target });
+    const seq = this.nextSeq();
+    const payload = JSON.stringify({ action, ml, target, seq });
     this.client.publish(TOPIC_PUMP_COMMANDS, payload);
-    console.log(`📤 Command Sent: ${payload}`);
+    console.log(`📤 Command Sent [seq=${seq}]: ${payload}`);
   }
 }
 

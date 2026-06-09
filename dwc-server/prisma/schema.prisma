@@ -49,3 +49,16 @@ model WatchdogConfig {
   enabled       Boolean  @default(true)
   updatedAt     DateTime @updatedAt
 }
+
+model BatchState {
+  id                Int      @id @default(1)
+  active            Boolean  @default(false)
+  batchType         String   // "DILUTION", "NUTRIENT", "PH_CORRECTION", "EMERGENCY_WATER"
+  totalWaterMl      Float
+  confirmedWaterMl  Float    @default(0)
+  totalNutrients    String?  // JSON string (e.g., {"cal":0,"micro":0,...})
+  confirmedNutrients String? // JSON string
+  targetPot         String?  @default("A")
+  startedAt         DateTime @default(now())
+  lastUpdate        DateTime @updatedAt
+}

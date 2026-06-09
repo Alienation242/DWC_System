@@ -225,7 +225,21 @@ app.get("/api/status", (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 autoSeed()
-  .then(() => {
+  .then(async () => {
+    // Clean up incomplete batches
+    const incompleteBatch = await prisma.batchState.findFirst({
+      where: { active: true },
+    });
+    if (incompleteBatch) {
+      console.warn(
+        "⚠️ Found incomplete batch from previous run. Sending emergency stop.",
+      );
+      hardwareComms.sendCommand("stop");
+      await prisma.batchState.update({
+        where: { id: incompleteBatch.id },
+        data: { active: false },
+      });
+    }
     server.listen(PORT, () => {
       console.log(`\n🚀 Smart DWC Server running on port ${PORT}`);
       console.log(

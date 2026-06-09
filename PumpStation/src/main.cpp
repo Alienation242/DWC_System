@@ -2,6 +2,15 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <esp_sleep.h>
+
+// ========== 0. PERSISTENT STATE (RTC memory, survives deep sleep & reset) ==========
+RTC_NOINIT_ATTR uint32_t lastSeqNum = 0;
+RTC_NOINIT_ATTR float pendingDoseMl = 0;
+RTC_NOINIT_ATTR int pendingDosePin = -1;
+RTC_NOINIT_ATTR unsigned long pendingDoseDuration = 0;
+RTC_NOINIT_ATTR uint32_t pendingDoseSeq = 0;      // sequence number of pending dose
+RTC_NOINIT_ATTR float pendingDoseRequestedMl = 0; // originally requested ml
 
 // ========== 1. HARDWARE MAPPING ==========
 const int RELAY_PH_DOWN   = 13;
@@ -35,6 +44,10 @@ int activeDosingPin = -1;
 int activeValvePin = -1;
 unsigned long actionEndTime = 0;
 unsigned long lastReconnectAttempt = 0; 
+unsigned long currentDoseStartTime = 0;
+float currentDoseFlowRate = 20.0;   // peristaltic default
+uint32_t currentDoseSeq = 0;
+float currentDoseRequestedMl = 0;   // added: requested ml for current dose
 
 float PERISTALTIC_ML_PER_SEC = 20.0;   
 float SUBMERSIBLE_ML_PER_SEC = 50.0;  
@@ -42,6 +55,19 @@ const unsigned long MAX_RUNTIME_MS = 600000;
 
 // ========== 4. FAIL-SAFE LOGIC ==========
 void emergencyStop() {
+  // Save pending dose if we were in the middle of dosing
+  if (activeDosingPin != -1 && actionEndTime > millis()) {
+    unsigned long remaining = actionEndTime - millis();
+    if (remaining > 0) {
+      pendingDosePin = activeDosingPin;
+      pendingDoseDuration = remaining;
+      pendingDoseMl = (remaining / 1000.0) * PERISTALTIC_ML_PER_SEC;
+      pendingDoseSeq = currentDoseSeq;
+      pendingDoseRequestedMl = currentDoseRequestedMl;
+      Serial.printf("💾 Saved pending dose: %lu ms (%.1f ml) seq=%u\n", remaining, pendingDoseMl, pendingDoseSeq);
+    }
+  }
+  
   const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO,
                          RELAY_GRO_FIN, RELAY_CALMAG, RELAY_RO_WATER, RELAY_SUB_PUMP,
                          RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
@@ -63,26 +89,36 @@ void publishStatus(const char* state, const char* task) {
   client.publish(TOPIC_STATUS, buffer);
 }
 
+// Publish dose completion with exact volume and sequence number
+void publishDoseComplete(uint32_t seq, float actualMl) {
+  JsonDocument doc;
+  doc["status"] = "dose_complete";
+  doc["seq"] = seq;
+  doc["volume_ml"] = actualMl;
+  char buffer[150];
+  serializeJson(doc, buffer);
+  client.publish(TOPIC_STATUS, buffer);
+  Serial.printf("📤 Dose complete: seq=%u, vol=%.1f ml\n", seq, actualMl);
+}
+
 // ========== 5. SOFT-START FOR SUBMERSIBLE PUMP ==========
 void softStartSubmersible() {
-  // Gradually increase PWM duty cycle over 500ms to reduce inrush current
-  // Note: This requires the pump to be connected to a PWM-capable pin (e.g., LEDC).
-  // If using a simple relay, this function does nothing – but you can still add a delay.
-  // For a relay, we just add a small delay to let the valve fully open.
   delay(200); // Allow valve to stabilise
-  // If you replace the relay with a MOSFET, uncomment the following:
-  /*
-  for (int duty = 0; duty <= 255; duty += 51) {
-    ledcWrite(0, duty); // Use LEDC channel 0
-    delay(50);
-  }
-  */
 }
 
 // ========== 6. FLOW SEQUENCE CONTROL ==========
-void startDosing(int pin, float ml, const char* pumpName) {
+void startDosing(int pin, float ml, const char* pumpName, uint32_t seq) {
   if (isSystemBusy) return;
   if (ml <= 0) return;
+  
+  // Ignore stale command
+  if (seq <= lastSeqNum && seq != 0) {
+    Serial.printf("⚠️ Ignoring stale command seq=%u (last=%u)\n", seq, lastSeqNum);
+    return;
+  }
+  lastSeqNum = seq;
+  currentDoseSeq = seq;
+  currentDoseRequestedMl = ml;  // store requested volume
 
   unsigned long durationMs = (unsigned long)((ml / PERISTALTIC_ML_PER_SEC) * 1000);
   if (durationMs > MAX_RUNTIME_MS) durationMs = MAX_RUNTIME_MS; 
@@ -91,9 +127,11 @@ void startDosing(int pin, float ml, const char* pumpName) {
   publishStatus("busy", "dosing");
   activeDosingPin = pin;
   actionEndTime = millis() + durationMs;
+  currentDoseStartTime = millis();
+  currentDoseFlowRate = PERISTALTIC_ML_PER_SEC;
   
   digitalWrite(activeDosingPin, HIGH);
-  Serial.printf("[PUMP START] %s triggered: %.1f mL for %lu ms\n", pumpName, ml, durationMs);
+  Serial.printf("[PUMP START] %s triggered: %.1f mL for %lu ms (seq=%u)\n", pumpName, ml, durationMs, seq);
 }
 
 void startDelivery(const char* target, float ml) {
@@ -113,11 +151,8 @@ void startDelivery(const char* target, float ml) {
   publishStatus("busy", "delivering");
   actionEndTime = millis() + durationMs;
 
-  // Open the valve first
   digitalWrite(activeValvePin, HIGH);
-  delay(200); // Stagger: let valve settle before starting pump
-
-  // Start submersible pump with soft-start
+  delay(200);
   softStartSubmersible();
   digitalWrite(RELAY_SUB_PUMP, HIGH);
 
@@ -130,8 +165,15 @@ void checkTimers() {
   if (millis() >= actionEndTime) {
     if (activeDosingPin != -1) {
       digitalWrite(activeDosingPin, LOW);
+      // Calculate exact volume pumped
+      unsigned long elapsed = actionEndTime - currentDoseStartTime;
+      float actualMl = (elapsed / 1000.0) * currentDoseFlowRate;
+      publishDoseComplete(currentDoseSeq, actualMl);
+      
       activeDosingPin = -1;
-      Serial.println("✅ Dosing line safely closed.");
+      pendingDosePin = -1;
+      pendingDoseDuration = 0;
+      Serial.printf("✅ Dosing line closed. Actual volume: %.1f ml\n", actualMl);
     }
     
     if (activeValvePin != -1) {
@@ -157,14 +199,15 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
   const char* action = doc["action"];
   float ml = doc["ml"] | 0.0;
+  uint32_t seq = doc["seq"] | 0;
 
-  if (strcmp(action, "dose_ph_down") == 0) startDosing(RELAY_PH_DOWN, ml, "pH Down");
-  else if (strcmp(action, "dose_ph_up") == 0) startDosing(RELAY_PH_UP, ml, "pH Up");
-  else if (strcmp(action, "dose_bloom") == 0) startDosing(RELAY_BLOOM, ml, "Bloom");
-  else if (strcmp(action, "dose_micro") == 0) startDosing(RELAY_MICRO, ml, "Micro");
-  else if (strcmp(action, "dose_calmag") == 0) startDosing(RELAY_CALMAG, ml, "CalMag"); 
-  else if (strcmp(action, "dose_gro_fin_relay") == 0) startDosing(RELAY_GRO_FIN, ml, "Gro/Finisher"); 
-  else if (strcmp(action, "dose_water") == 0) startDosing(RELAY_RO_WATER, ml, "RO Carrier Water"); 
+  if (strcmp(action, "dose_ph_down") == 0) startDosing(RELAY_PH_DOWN, ml, "pH Down", seq);
+  else if (strcmp(action, "dose_ph_up") == 0) startDosing(RELAY_PH_UP, ml, "pH Up", seq);
+  else if (strcmp(action, "dose_bloom") == 0) startDosing(RELAY_BLOOM, ml, "Bloom", seq);
+  else if (strcmp(action, "dose_micro") == 0) startDosing(RELAY_MICRO, ml, "Micro", seq);
+  else if (strcmp(action, "dose_calmag") == 0) startDosing(RELAY_CALMAG, ml, "CalMag", seq);
+  else if (strcmp(action, "dose_gro_fin_relay") == 0) startDosing(RELAY_GRO_FIN, ml, "Gro/Finisher", seq);
+  else if (strcmp(action, "dose_water") == 0) startDosing(RELAY_RO_WATER, ml, "RO Carrier Water", seq);
   else if (strcmp(action, "deliver") == 0) {
     const char* target = doc["target"] | "Unknown";
     startDelivery(target, ml);
@@ -211,14 +254,28 @@ void setup() {
     digitalWrite(pin, LOW); 
   }
 
-  // Optional: set up LEDC PWM for soft-start if using MOSFET
-  // ledcSetup(0, 5000, 8); // channel 0, 5kHz, 8-bit resolution
-  // ledcAttachPin(RELAY_SUB_PUMP, 0);
+  // Resume interrupted dose if any
+  if (pendingDosePin != -1 && pendingDoseDuration > 0) {
+    Serial.printf("🔁 Resuming interrupted dose: pin %d for %lu ms (%.1f ml) seq=%u\n", 
+                  pendingDosePin, pendingDoseDuration, pendingDoseMl, pendingDoseSeq);
+    isSystemBusy = true;
+    activeDosingPin = pendingDosePin;
+    actionEndTime = millis() + pendingDoseDuration;
+    currentDoseStartTime = millis();
+    currentDoseFlowRate = PERISTALTIC_ML_PER_SEC;
+    currentDoseSeq = pendingDoseSeq;
+    currentDoseRequestedMl = pendingDoseRequestedMl;
+    digitalWrite(activeDosingPin, HIGH);
+    publishStatus("busy", "resumed_dosing");
+    // Clear pending so we don't resume again later
+    pendingDosePin = -1;
+    pendingDoseDuration = 0;
+  }
 
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setCallback(mqttCallback);
-  client.setKeepAlive(60); // Increase keep-alive to reduce disconnections
+  client.setKeepAlive(60);
 }
 
 void loop() {
@@ -227,7 +284,6 @@ void loop() {
       Serial.println("⚠️ NETWORK CONNECTION LOST! Triggering Dead Man's Switch.");
       emergencyStop(); 
     }
-
     unsigned long now = millis();
     if (now - lastReconnectAttempt > 5000) {
       lastReconnectAttempt = now;
