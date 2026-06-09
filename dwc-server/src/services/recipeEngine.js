@@ -566,9 +566,26 @@ class RecipeEngine {
             `🌊 Delivering ${dilutionMl.toFixed(1)}ml pure water (Blowout ${blowoutVolume.toFixed(1)}ml) to Pot A...`,
           );
 
-          await this.mqtt.waitForIdle();
-          this.mqtt.sendCommand("deliver", blowoutVolume, "A");
-          await this.mqtt.waitForIdle();
+          let remainingDeliver = blowoutVolume;
+          while (remainingDeliver > 0.5) {
+            await this.mqtt.waitForDevice("pump_node_1");
+            let startTime = Date.now();
+            try {
+              this.mqtt.sendCommand("deliver", remainingDeliver, "A");
+              await this.mqtt.waitForIdle();
+              remainingDeliver = 0;
+            } catch (err) {
+              if (err.message === "OFFLINE_INTERRUPT") {
+                let elapsedMs = Date.now() - startTime;
+                let pumpedMl = (elapsedMs / 1000) * 50.0; // Submersible flow rate
+                remainingDeliver -= pumpedMl;
+                if (remainingDeliver > 0.5)
+                  console.warn(
+                    `⚠️ Delivery interrupted. Remaining: ${remainingDeliver.toFixed(1)}ml. Waiting to resume...`,
+                  );
+              } else throw err;
+            }
+          }
 
           await prisma.batchState.update({
             where: { id: batch.id },
@@ -601,8 +618,27 @@ class RecipeEngine {
         const totalVolume = 250.0 + actualAcid;
         const blowoutVolume = totalVolume * 1.2;
 
-        this.mqtt.sendCommand("deliver", blowoutVolume, "A");
-        await this.mqtt.waitForIdle();
+        // --- THE FIX: Add the Delivery Retry Loop ---
+        let remainingDeliver = blowoutVolume;
+        while (remainingDeliver > 0.5) {
+          await this.mqtt.waitForDevice("pump_node_1");
+          let startTime = Date.now();
+          try {
+            this.mqtt.sendCommand("deliver", remainingDeliver, "A");
+            await this.mqtt.waitForIdle();
+            remainingDeliver = 0;
+          } catch (err) {
+            if (err.message === "OFFLINE_INTERRUPT") {
+              let elapsedMs = Date.now() - startTime;
+              let pumpedMl = (elapsedMs / 1000) * 50.0;
+              remainingDeliver -= pumpedMl;
+              if (remainingDeliver > 0.5)
+                console.warn(
+                  `⚠️ Delivery interrupted. Remaining: ${remainingDeliver.toFixed(1)}ml. Waiting to resume...`,
+                );
+            } else throw err;
+          }
+        }
         console.log(`✅ pH Correction Complete.`);
       } else {
         console.warn(`🚫 Aborting pH Correction: Watchdog blocked ${type}.`);
