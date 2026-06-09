@@ -4,52 +4,52 @@
 #include <ArduinoJson.h>
 
 // ========== 1. HARDWARE MAPPING ==========
-// Dosing Bank (Peristaltic)
 const int RELAY_PH_DOWN   = 13;
 const int RELAY_PH_UP     = 14;
 const int RELAY_BLOOM     = 15;
 const int RELAY_MICRO     = 16;
-const int RELAY_GRO_FIN   = 17; // The Multiplexed Gro/Finisher swap
-const int RELAY_CALMAG    = 25; // CalMag Relay
-const int RELAY_RO_WATER  = 26; // NEW: Dedicated RO Carrier Fluid Relay
-
-// Delivery Bank (Submersible & Solenoids)
+const int RELAY_GRO_FIN   = 17;   // Gro/Finisher multiplex
+const int RELAY_CALMAG    = 25;
+const int RELAY_RO_WATER  = 26;   // Fresh water
 const int RELAY_SUB_PUMP  = 18;
 const int RELAY_VALVE_A   = 19;
 const int RELAY_VALVE_B   = 21;
 const int RELAY_VALVE_C   = 22;
 const int RELAY_VALVE_D   = 23;
 
-// ========== 2. NETWORK CONFIGURATION ==========
-const char* ssid = "Wokwi-GUEST"; 
+// ========== 2. NETWORK ==========
+const char* ssid = "Wokwi-GUEST";
 const char* password = "";
-const char* mqtt_server = "test.mosquitto.org"; 
+const char* mqtt_server = "test.mosquitto.org";
 const char* TOPIC_COMMANDS = "kevin/dwc/pump_node_1/commands";
 const char* TOPIC_STATUS = "kevin/dwc/pump_node_1/status";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-// ========== 3. STATE MACHINE & CALIBRATION ==========
+// ========== 3. STATE ==========
 bool isSystemBusy = false;
-
 int activeDosingPin = -1;
 int activeValvePin = -1;
 unsigned long actionEndTime = 0;
 
-// CALIBRATION: Flow Rates (mL per second)
-const float PERISTALTIC_ML_PER_SEC = 2.0;    
-const float SUBMERSIBLE_ML_PER_SEC = 50.0; 
+// Pump rates (ml/s) – adjust for real hardware
+#ifdef WOKWI_SIMULATION
+  const float PERISTALTIC_ML_PER_SEC = 20.0;   // faster for sim
+  const float SUBMERSIBLE_ML_PER_SEC = 200.0;
+#else
+  const float PERISTALTIC_ML_PER_SEC = 2.0;
+  const float SUBMERSIBLE_ML_PER_SEC = 50.0;
+#endif
 
-// FAIL-SAFE: Absolute maximum time any pump can run
-const unsigned long MAX_RUNTIME_MS = 300000; 
+const unsigned long MAX_RUNTIME_MS = 300000;   // 5 min safety
 
 // ========== 4. HARDWARE LOGIC ==========
 void emergencyStop() {
-  const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO, RELAY_GRO_FIN, RELAY_CALMAG, RELAY_RO_WATER, RELAY_SUB_PUMP, RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
-  for(int pin : allPins) {
-    digitalWrite(pin, LOW);
-  }
+  const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO,
+                         RELAY_GRO_FIN, RELAY_CALMAG, RELAY_RO_WATER, RELAY_SUB_PUMP,
+                         RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
+  for (int pin : allPins) digitalWrite(pin, LOW);
   isSystemBusy = false;
   activeDosingPin = -1;
   activeValvePin = -1;
@@ -73,7 +73,7 @@ void startDosing(int pin, float ml, const char* pumpName) {
   if (ml <= 0) return;
 
   unsigned long durationMs = (unsigned long)((ml / PERISTALTIC_ML_PER_SEC) * 1000);
-  if (durationMs > MAX_RUNTIME_MS) durationMs = MAX_RUNTIME_MS; 
+  if (durationMs > MAX_RUNTIME_MS) durationMs = MAX_RUNTIME_MS;
 
   isSystemBusy = true;
   publishStatus("busy", "running_pump");
@@ -108,7 +108,7 @@ void startDelivery(const char* target, float ml) {
   actionEndTime = millis() + durationMs;
 
   digitalWrite(activeValvePin, HIGH);
-  delay(150); 
+  delay(150);
   digitalWrite(RELAY_SUB_PUMP, HIGH);
 
   Serial.printf("[DELIVERY] Routing %lu mL to Pot %s for %lu ms\n", (unsigned long)ml, target, durationMs);
@@ -123,10 +123,10 @@ void checkTimers() {
       activeDosingPin = -1;
       Serial.println("✅ Dosing complete.");
     }
-    
+
     if (activeValvePin != -1) {
       digitalWrite(RELAY_SUB_PUMP, LOW);
-      delay(150); 
+      delay(150);
       digitalWrite(activeValvePin, LOW);
       activeValvePin = -1;
       Serial.println("✅ Delivery complete.");
@@ -137,11 +137,11 @@ void checkTimers() {
   }
 }
 
-// ========== 5. MQTT LISTENER ==========
+// ========== 5. MQTT CALLBACK ==========
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   String message;
   for (unsigned int i = 0; i < length; i++) message += (char)payload[i];
-  
+
   JsonDocument doc;
   if (deserializeJson(doc, message)) {
     Serial.println("Failed to parse JSON command.");
@@ -155,19 +155,17 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   else if (strcmp(action, "dose_ph_up") == 0) startDosing(RELAY_PH_UP, ml, "pH Up");
   else if (strcmp(action, "dose_bloom") == 0) startDosing(RELAY_BLOOM, ml, "Bloom");
   else if (strcmp(action, "dose_micro") == 0) startDosing(RELAY_MICRO, ml, "Micro");
-  else if (strcmp(action, "dose_calmag") == 0) startDosing(RELAY_CALMAG, ml, "CalMag"); 
-  else if (strcmp(action, "dose_gro_fin_relay") == 0) startDosing(RELAY_GRO_FIN, ml, "Gro/Finisher"); 
-  else if (strcmp(action, "dose_water") == 0) startDosing(RELAY_RO_WATER, ml, "RO Carrier Fluid"); // ✅ PROPERLY MAPPED
+  else if (strcmp(action, "dose_calmag") == 0) startDosing(RELAY_CALMAG, ml, "CalMag");
+  else if (strcmp(action, "dose_gro_fin_relay") == 0) startDosing(RELAY_GRO_FIN, ml, "Gro/Finisher");
+  else if (strcmp(action, "dose_water") == 0) startDosing(RELAY_RO_WATER, ml, "Water");
   else if (strcmp(action, "deliver") == 0) {
     const char* target = doc["target"] | "Unknown";
     startDelivery(target, ml);
   }
-  else if (strcmp(action, "stop") == 0) {
-    emergencyStop();
-  }
+  else if (strcmp(action, "stop") == 0) emergencyStop();
 }
 
-// ========== 6. NETWORK & LOOP ==========
+// ========== 6. SETUP & LOOP ==========
 void setup_wifi() {
   Serial.print("\nConnecting to Wi-Fi");
   WiFi.begin(ssid, password);
@@ -178,22 +176,13 @@ void setup_wifi() {
   Serial.println("\nPump Node Connected!");
 }
 
-void reconnect() {
-  while (!client.connected()) {
-    if (client.connect("ESP32_PumpNode_01")) {
-      client.subscribe(TOPIC_COMMANDS);
-      Serial.println("Listening for Brain Commands...");
-    } else {
-      delay(5000);
-    }
-  }
-}
-
 void setup() {
   Serial.begin(115200);
-  
-  const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO, RELAY_GRO_FIN, RELAY_CALMAG, RELAY_RO_WATER, RELAY_SUB_PUMP, RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
-  for(int pin : allPins) {
+
+  const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO,
+                         RELAY_GRO_FIN, RELAY_CALMAG, RELAY_RO_WATER, RELAY_SUB_PUMP,
+                         RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
+  for (int pin : allPins) {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
   }
@@ -204,7 +193,19 @@ void setup() {
 }
 
 void loop() {
-  if (!client.connected()) reconnect();
-  client.loop(); 
+  // 1. Always check hardware timers FIRST – this is critical for safety
   checkTimers();
+
+  // 2. Non‑blocking MQTT connection management
+  if (!client.connected()) {
+    // Try to reconnect without long delays
+    if (client.connect("ESP32_PumpNode_01")) {
+      client.subscribe(TOPIC_COMMANDS);
+      Serial.println("Listening for Brain Commands...");
+    } else {
+      delay(100);   // tiny backoff, still allows checkTimers() to run often
+    }
+  } else {
+    client.loop();
+  }
 }
