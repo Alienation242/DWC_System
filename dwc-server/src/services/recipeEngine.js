@@ -18,6 +18,7 @@ const SYSTEM_CONFIG_PATH = path.join(process.cwd(), "config", "system.json");
 class RecipeEngine {
   constructor(mqttService) {
     this.mqtt = mqttService;
+    this.isTicking = false;
   }
 
   resolveCurve(param, progress) {
@@ -115,6 +116,14 @@ class RecipeEngine {
   }
 
   async executeTick() {
+    if (this.isTicking) {
+      console.warn(
+        "⚠️ Engine is currently mixing a batch. Ignoring overlapping tick request.",
+      );
+      return;
+    }
+
+    this.isTicking = true; // Lock the engine
     console.log("\n--- 🧠 [RECIPE ENGINE] TICK INITIATED ---");
     try {
       const state = await prisma.systemState.findUnique({ where: { id: 1 } });
@@ -204,6 +213,8 @@ class RecipeEngine {
       );
     } catch (error) {
       console.error("❌ Recipe Engine Error:", error);
+    } finally {
+      this.isTicking = false;
     }
   }
 
