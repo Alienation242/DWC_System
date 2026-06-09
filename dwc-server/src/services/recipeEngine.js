@@ -195,7 +195,7 @@ class RecipeEngine {
         partsM = 2;
         partsB = 1;
       } else if (s === "INITIATION") {
-        partsG = 2;
+        partsG = 1;
         partsM = 2;
         partsB = 2;
       } else if (s === "BULKING") {
