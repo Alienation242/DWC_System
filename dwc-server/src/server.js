@@ -208,10 +208,16 @@ const hardwareComms = new MqttService(io);
 const engine = new RecipeEngine(hardwareComms);
 
 // ------------------ Cron Loop ------------------
-const TICK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-setInterval(async () => {
+const TICK_INTERVAL_MS = 5 * 60 * 1000;
+
+async function runEngineLoop() {
   await engine.executeTick();
-}, TICK_INTERVAL_MS);
+  // Wait exactly 5 minutes AFTER the tick finishes before starting the next one
+  setTimeout(runEngineLoop, TICK_INTERVAL_MS);
+}
+
+// Start the loop 5 seconds after boot
+setTimeout(runEngineLoop, 5000);
 
 // ------------------ Health Check ------------------
 app.get("/api/status", (req, res) => {

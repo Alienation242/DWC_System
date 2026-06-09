@@ -218,10 +218,12 @@ class RecipeEngine {
   async executePumpAndWait(pumpName, actionStr, amountMl) {
     if (amountMl <= 0.5) return 0;
 
-    let safeMl = amountMl;
-    if (pumpName !== "Water") {
-      safeMl = Math.min(15.0, amountMl);
-    }
+    // Exempt RO Water from the 15ml safety cap!
+    const isWater =
+      pumpName === "Fresh_Water" ||
+      pumpName === "RO Water" ||
+      pumpName === "Water";
+    const safeMl = isWater ? amountMl : Math.min(15.0, amountMl);
 
     if (await Watchdog.isSafeToDose(pumpName, safeMl)) {
       const hw = await loadHardwareConfig();
