@@ -53,30 +53,27 @@ async function autoSeed() {
 
   // 2. WatchdogConfigs for all known pumps
   const requiredPumps = [
-    "pH_Down",
-    "pH_Up",
-    "Micro",
-    "Bloom",
-    "CalMag",
-    "Gro",
-    "Finisher",
-    "Water",
+    { name: "pH_Down", limit: 20.0 },
+    { name: "pH_Up", limit: 20.0 },
+    { name: "Micro", limit: 250.0 },
+    { name: "Bloom", limit: 250.0 },
+    { name: "CalMag", limit: 250.0 },
+    { name: "Gro", limit: 250.0 },
+    { name: "Finisher", limit: 250.0 },
+    { name: "Fresh_Water", limit: 20000.0 },
   ];
+
   for (const pump of requiredPumps) {
-    const existing = await prisma.watchdogConfig.findUnique({
-      where: { pumpName: pump },
+    let config = await prisma.watchdogConfig.findUnique({
+      where: { pumpName: pump.name },
     });
-    if (!existing) {
-      const dailyLimit =
-        systemConfig.watchdog.defaultDailyLimitMl[pump] || 15.0;
-      console.log(
-        `🌱 Creating WatchdogConfig for ${pump} (limit ${dailyLimit}ml/day)...`,
-      );
+    if (!config) {
+      console.log(`🛡️ Creating Watchdog Config for ${pump.name}...`);
       await prisma.watchdogConfig.create({
         data: {
-          pumpName: pump,
-          dailyLimitMl: dailyLimit,
-          cooldownSecs: systemConfig.watchdog.defaultCooldownSecs || 30,
+          pumpName: pump.name,
+          dailyLimitMl: pump.limit,
+          cooldownSecs: systemConfig.watchdog.defaultCooldownSecs,
           enabled: true,
         },
       });

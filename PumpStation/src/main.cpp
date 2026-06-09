@@ -25,7 +25,7 @@ const int RELAY_VALVE_D   = 23;
 float PERISTALTIC_ML_PER_SEC = 20.0;   // change for real hardware
 float SUBMERSIBLE_ML_PER_SEC = 50.0;   // change for real hardware
 
-const unsigned long MAX_RUNTIME_MS = 300000;   // 5 min safety (increase if needed)
+const unsigned long MAX_RUNTIME_MS = 600000;   // 10 min safety (increase if needed)
 
 // ========== 3. NETWORK ==========
 const char* ssid = "Wokwi-GUEST";

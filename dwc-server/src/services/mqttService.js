@@ -49,14 +49,16 @@ class MqttService extends EventEmitter {
   waitForIdle(timeoutMs = 900000) {
     return new Promise((resolve, reject) => {
       if (this.hardwareStatus === "idle") return resolve();
+
       const timeout = setTimeout(() => {
         this.removeListener("hardware_idle", onIdle);
-        reject(
-          new Error(
-            `Hardware timeout after ${timeoutMs / 1000}s - ESP32 not idle`,
-          ),
+        console.error(
+          "⚠️ HARDWARE TIMEOUT: ESP32 unresponsive for 15 mins. Force unlocking.",
         );
+        this.hardwareStatus = "idle";
+        resolve();
       }, timeoutMs);
+
       const onIdle = () => {
         clearTimeout(timeout);
         resolve();
