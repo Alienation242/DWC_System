@@ -1,28 +1,14 @@
 const MqttService = require("../../../src/services/mqttService");
 const EventEmitter = require("events");
 const mqtt = require("mqtt");
+const mockPrisma = require("../../../mocks/mockPrisma"); // <-- add
 
 jest.mock("mqtt");
-
-// Use var to avoid temporal dead zone (var is hoisted and initialized to undefined)
-var mockSharedPrisma;
-
-jest.mock("@prisma/client", () => {
-  mockSharedPrisma = {
-    telemetryLog: { create: jest.fn() },
-  };
-  return { PrismaClient: jest.fn(() => mockSharedPrisma) };
-});
 
 jest.mock("../../../src/services/calibrationService", () => ({
   convertPH: jest.fn().mockResolvedValue(6.5),
   convertEC: jest.fn().mockResolvedValue(1200),
 }));
-
-const {
-  convertPH,
-  convertEC,
-} = require("../../../src/services/calibrationService");
 
 describe("MqttService", () => {
   let service;
@@ -30,9 +16,6 @@ describe("MqttService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    if (mockSharedPrisma) {
-      mockSharedPrisma.telemetryLog.create.mockClear();
-    }
     mockClient = {
       on: jest.fn(),
       subscribe: jest.fn(),

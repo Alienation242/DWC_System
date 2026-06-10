@@ -1,19 +1,8 @@
 const request = require("supertest");
 const app = require("../../../src/server");
-const { PrismaClient } = require("@prisma/client");
 const CalibrationService = require("../../../src/services/calibrationService");
 const fs = require("fs").promises;
-
-// Mock PrismaClient
-jest.mock("@prisma/client", () => {
-  const mockPrisma = {
-    watchdogConfig: { findMany: jest.fn(), upsert: jest.fn() },
-    systemState: { findUnique: jest.fn(), update: jest.fn() },
-    batchState: { findFirst: jest.fn(), update: jest.fn() },
-    $disconnect: jest.fn(),
-  };
-  return { PrismaClient: jest.fn(() => mockPrisma) };
-});
+const mockPrisma = require("../../../mocks/mockPrisma"); // <-- add this
 
 // Mock calibration service
 jest.mock("../../../src/services/calibrationService", () => ({
@@ -40,10 +29,7 @@ jest.mock("fs", () => ({
 }));
 
 describe("Server API Endpoints", () => {
-  let prisma;
-
   beforeEach(() => {
-    prisma = new PrismaClient();
     jest.clearAllMocks();
   });
 
@@ -110,7 +96,7 @@ describe("Server API Endpoints", () => {
 
   // ========== Watchdog Configuration ==========
   test("GET /api/watchdog/config", async () => {
-    prisma.watchdogConfig.findMany.mockResolvedValue([
+    mockPrisma.watchdogConfig.findMany.mockResolvedValue([
       { pumpName: "pH_Down", dailyLimitMl: 20 },
     ]);
     const res = await request(app).get("/api/watchdog/config");
@@ -119,7 +105,7 @@ describe("Server API Endpoints", () => {
   });
 
   test("POST /api/watchdog/config upserts", async () => {
-    prisma.watchdogConfig.upsert.mockResolvedValue({
+    mockPrisma.watchdogConfig.upsert.mockResolvedValue({
       pumpName: "Micro",
       dailyLimitMl: 30,
     });
@@ -130,7 +116,7 @@ describe("Server API Endpoints", () => {
       enabled: true,
     });
     expect(res.statusCode).toBe(200);
-    expect(prisma.watchdogConfig.upsert).toHaveBeenCalledWith({
+    expect(mockPrisma.watchdogConfig.upsert).toHaveBeenCalledWith({
       where: { pumpName: "Micro" },
       update: { dailyLimitMl: 30, cooldownSecs: 45, enabled: true },
       create: {
@@ -144,21 +130,24 @@ describe("Server API Endpoints", () => {
 
   // ========== System State & Control ==========
   test("GET /api/system/state", async () => {
-    prisma.systemState.findUnique.mockResolvedValue({ id: 1, currentDay: 50 });
+    mockPrisma.systemState.findUnique.mockResolvedValue({
+      id: 1,
+      currentDay: 50,
+    });
     const res = await request(app).get("/api/system/state");
     expect(res.statusCode).toBe(200);
     expect(res.body.currentDay).toBe(50);
   });
 
   test("POST /api/system/advance-day", async () => {
-    prisma.systemState.update.mockResolvedValue({ currentDay: 51 });
+    mockPrisma.systemState.update.mockResolvedValue({ currentDay: 51 });
     const res = await request(app).post("/api/system/advance-day");
     expect(res.statusCode).toBe(200);
     expect(res.body.currentDay).toBe(51);
   });
 
   test("POST /api/system/override changes automation mode", async () => {
-    prisma.systemState.update.mockResolvedValue({
+    mockPrisma.systemState.update.mockResolvedValue({
       automationMode: "MANUAL_OVERRIDE",
     });
     const res = await request(app)

@@ -275,5 +275,4 @@ if (process.env.NODE_ENV === "test") {
   module.exports._hardwareComms = hardwareComms;
   module.exports._engine = engine;
 }
-
 module.exports = app;

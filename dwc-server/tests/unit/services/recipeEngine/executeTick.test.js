@@ -198,9 +198,11 @@ describe("RecipeEngine.executeTick", () => {
   });
 
   test("skips nutrient dosing when deficit too small", async () => {
+    // target PPM for day 50 is ~428, deadband 20 => skip if live PPM >= 408
     mockPrisma.telemetryLog.findFirst.mockResolvedValue({
       realPH: 5.8,
-      realEC: 426, // target 428 -> deficit 2 PPM
+      realEC: 840, // PPM = 420 (since EC*0.5), deficit = 8 < 20
+      timestamp: new Date(),
     });
     await engine.executeTick();
     expect(engine.executePumpAndWait).not.toHaveBeenCalled();
@@ -227,20 +229,39 @@ describe("RecipeEngine.executeTick", () => {
 
   // In executeTick.test.js, inside the dilution test, we can force an interruption
   test("_deliverToPot handles interruption and retries", async () => {
-    const mockDeliver = jest.spyOn(engine.mqtt, "sendCommand");
-    const mockWaitForIdle = jest
+    // Spy on mqtt.sendCommand
+    const sendCommandSpy = jest.spyOn(engine.mqtt, "sendCommand");
+    // Mock waitForIdle to reject once, then resolve
+    const waitForIdleMock = jest
       .spyOn(engine.mqtt, "waitForIdle")
       .mockRejectedValueOnce(new Error("OFFLINE_INTERRUPT"))
       .mockResolvedValue();
-    const mockWaitForDevice = jest
-      .spyOn(engine.mqtt, "waitForDevice")
-      .mockResolvedValue();
+    // Mock waitForDevice to resolve immediately
+    jest.spyOn(engine.mqtt, "waitForDevice").mockResolvedValue();
 
     await engine._deliverToPot(1000, "A");
 
-    expect(mockDeliver).toHaveBeenCalledTimes(2); // first attempt, then retry after interruption
-    mockDeliver.mockRestore();
-    mockWaitForIdle.mockRestore();
-    mockWaitForDevice.mockRestore();
+    // First call: send command with 1000ml, second call after interruption? Actually the loop
+    // in _deliverToPot sends one command, then if interruption occurs, it reduces remaining
+    // based on elapsed time and loops. But our mock of waitForIdle rejects immediately,
+    // so no time passes, remaining stays 1000, then it retries and sends another command.
+    expect(sendCommandSpy).toHaveBeenCalledTimes(2);
+    expect(sendCommandSpy).toHaveBeenNthCalledWith(
+      1,
+      "deliver",
+      1000,
+      "A",
+      expect.any(Number),
+    );
+    expect(sendCommandSpy).toHaveBeenNthCalledWith(
+      2,
+      "deliver",
+      1000,
+      "A",
+      expect.any(Number),
+    );
+
+    sendCommandSpy.mockRestore();
+    waitForIdleMock.mockRestore();
   });
 });

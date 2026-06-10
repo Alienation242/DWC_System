@@ -1,14 +1,7 @@
 const RecipeEngine = require("../../src/services/recipeEngine");
 const Watchdog = require("../../src/services/watchdog");
 const EventEmitter = require("events");
-
-jest.mock("@prisma/client", () => {
-  const mockPrisma = {
-    batchState: { create: jest.fn(), update: jest.fn() },
-    doseLog: { create: jest.fn() },
-  };
-  return { PrismaClient: jest.fn(() => mockPrisma) };
-});
+const mockPrisma = require("../../../mocks/mockPrisma");
 
 jest.mock("../../src/services/watchdog", () => ({
   isSafeToDose: jest.fn().mockResolvedValue(true),

@@ -1,12 +1,8 @@
 const MqttService = require("../../../src/services/mqttService");
-const EventEmitter = require("events");
 const mqtt = require("mqtt");
+const mockPrisma = require("../../../mocks/mockPrisma");
 
 jest.mock("mqtt");
-jest.mock("@prisma/client", () => {
-  const mockPrisma = { telemetryLog: { create: jest.fn() } };
-  return { PrismaClient: jest.fn(() => mockPrisma) };
-});
 jest.mock("../../../src/services/calibrationService", () => ({
   convertPH: jest.fn().mockResolvedValue(6.5),
   convertEC: jest.fn().mockResolvedValue(1200),
@@ -86,9 +82,7 @@ describe("MqttService Edge Cases", () => {
   });
 
   test("handleTelemetry catches Prisma error", async () => {
-    const { PrismaClient } = require("@prisma/client");
-    const prisma = new PrismaClient();
-    prisma.telemetryLog.create.mockRejectedValue(new Error("DB down"));
+    mockPrisma.telemetryLog.create.mockRejectedValue(new Error("DB down"));
     const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
     const payload = {
       rawPH: 2000,

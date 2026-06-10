@@ -100,30 +100,39 @@ describe("RecipeEngine.executePumpAndWait", () => {
   });
 
   test("deducts assumed volume when hardware never reports completion or resume", async () => {
+    jest.useFakeTimers();
+    const realDateNow = Date.now;
+    const startTime = 100000;
+    Date.now = jest.fn().mockReturnValue(startTime);
+
+    // Mock waitForBusy to fail with OFFLINE_INTERRUPT on first call
     mqtt.waitForBusy.mockRejectedValueOnce(new Error("OFFLINE_INTERRUPT"));
-    // After reconnect, waitForBusy and waitForDoseComplete both fail
+    // After reconnect, make waitForBusy and waitForDoseComplete both fail
     mqtt.waitForBusy.mockRejectedValue(new Error("still offline"));
     jest
       .spyOn(engine, "waitForDoseComplete")
       .mockRejectedValue(new Error("no completion"));
-    // Simulate that some time passed while pump was running
-    const startTime = Date.now();
+    // Ensure waitForDevice resolves (reconnect)
+    mqtt.waitForDevice.mockResolvedValue();
+
     const dosePromise = engine.executePumpAndWait("Water", "dose_water", 1000);
+    // Let the first sendCommand happen
     await Promise.resolve();
-    // Advance time by 3 seconds => assumed 3*200 = 600ml pumped
+    // Advance time by 3 seconds → assumed pumped = 3 * 200 = 600ml
     jest.advanceTimersByTime(3000);
-    // Let the catch block run
+    // Allow the catch block to run and deduct
     await Promise.resolve();
-    // The function should now continue the while loop with remainingMl = 1000 - 600 = 400
-    // It will send a new command for 400ml
-    await Promise.resolve(); // allow next iteration
+    // After deduction, remaining should be 400, and a new command should be sent
+    await Promise.resolve(); // let the loop iterate
     expect(mqtt.sendCommand).toHaveBeenLastCalledWith(
       "dose_water",
       400,
       "None",
       2,
     );
-    // Clean up
+
+    Date.now = realDateNow;
+    jest.useRealTimers();
     engine.waitForDoseComplete.mockRestore();
   });
 });
