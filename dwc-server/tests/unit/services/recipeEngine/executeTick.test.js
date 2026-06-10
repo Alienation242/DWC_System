@@ -177,10 +177,14 @@ describe("RecipeEngine.executeTick", () => {
   });
 
   test("handles missing systemState gracefully", async () => {
-    // Spy on console.error before running the tick
     const consoleErrorSpy = jest
       .spyOn(console, "error")
       .mockImplementation(() => {});
+    mockPrisma.telemetryLog.findFirst.mockResolvedValue({
+      realPH: 5.8,
+      realEC: 800,
+      timestamp: new Date(),
+    });
     mockPrisma.systemState.findFirst.mockResolvedValue(null);
     await engine.executeTick();
     expect(consoleErrorSpy).toHaveBeenCalled();
