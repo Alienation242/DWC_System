@@ -204,12 +204,25 @@ io.on("connection", (socket) => {
 const hardwareComms = new MqttService(io);
 const engine = new RecipeEngine(hardwareComms);
 
+// ==========================================
+// TRIGGER FIRST TICK ON FIRST TELEMETRY
+// ==========================================
+let firstTelemetryReceived = false;
+hardwareComms.on("telemetry", () => {
+  if (!firstTelemetryReceived) {
+    firstTelemetryReceived = true;
+    console.log(
+      "📡 First telemetry received – triggering initial engine tick immediately.",
+    );
+    engine.executeTick().catch(console.error);
+  }
+});
+
 // ------------------ Cron Loop ------------------
 const TICK_INTERVAL_MS = 5 * 60 * 1000;
 
 async function runEngineLoop() {
   await engine.executeTick();
-  // Wait exactly 5 minutes AFTER the tick finishes before starting the next one
   setTimeout(runEngineLoop, TICK_INTERVAL_MS);
 }
 

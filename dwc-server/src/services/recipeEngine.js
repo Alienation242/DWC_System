@@ -307,27 +307,51 @@ class RecipeEngine {
           try {
             await this.mqtt.waitForDevice("pump_node_1");
             console.log(
-              `🔌 Hardware reconnected. Waiting for resume of seq=${seq}...`,
+              `🔌 Hardware reconnected. Checking completion of seq=${seq}...`,
             );
-            await this.mqtt.waitForBusy(15000, seq);
-            console.log(`✅ Hardware resumed dose seq=${seq}.`);
 
-            const result = await Promise.race([
-              this.waitForDoseComplete(
-                seq,
-                2 * (remainingMl / flowRate) * 1000 + 10000,
-              ),
-              this.mqtt.waitForIdle().then(() => ({ type: "idle" })),
+            // Wait a moment for a possible dose_complete that might have been sent while offline
+            let completed = false;
+            const completionPromise = this.waitForDoseComplete(seq, 5000);
+            const completionResult = await Promise.race([
+              completionPromise,
+              new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
             ]);
 
-            if (result.type === "complete") {
-              remainingMl -= result.volume;
-              if (remainingMl <= 0.5) break;
-            } else {
-              remainingMl = 0;
-              break;
+            if (completionResult) {
+              console.log(
+                `✅ Dose seq=${seq} completed while offline. Volume: ${completionResult.volume}ml`,
+              );
+              remainingMl -= completionResult.volume;
+              if (remainingMl <= 0.5) {
+                completed = true;
+                break;
+              }
+            }
+
+            if (!completed) {
+              console.log(`Waiting for resume of seq=${seq}...`);
+              await this.mqtt.waitForBusy(15000, seq);
+              console.log(`✅ Hardware resumed dose seq=${seq}.`);
+
+              const result = await Promise.race([
+                this.waitForDoseComplete(
+                  seq,
+                  2 * (remainingMl / flowRate) * 1000 + 10000,
+                ),
+                this.mqtt.waitForIdle().then(() => ({ type: "idle" })),
+              ]);
+
+              if (result.type === "complete") {
+                remainingMl -= result.volume;
+                if (remainingMl <= 0.5) break;
+              } else {
+                remainingMl = 0;
+                break;
+              }
             }
           } catch (resumeErr) {
+            // Fallback to overflow shield
             console.warn(
               `⚠️ No auto‑resume. Deducting assumed ${assumedPumped.toFixed(1)}ml`,
             );

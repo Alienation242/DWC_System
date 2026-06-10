@@ -193,6 +193,16 @@ class MqttService extends EventEmitter {
       console.log(
         `💾 Telemetry Logged: pH ${realPH.toFixed(2)} | EC ${Math.round(realEC)}`,
       );
+
+      this.emit("telemetry", {
+        rawPH: payload.rawPH,
+        rawEC: payload.rawEC,
+        realPH,
+        realEC,
+        isTankEmpty: payload.isTankEmpty,
+        isTankOverflowing: payload.isTankOverflowing,
+      });
+
       if (this.io) {
         this.io.emit("telemetry_update", { ...payload, realPH, realEC });
       }
