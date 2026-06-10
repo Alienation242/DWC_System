@@ -339,6 +339,7 @@ void setup() {
 }
 
 void loop() {
+  delay(10); // Short delay to prevent slow clockspeeds (wokwi documentation recommendation)
   if (!client.connected()) {
     if (wifiDisconnectTime == 0) {
       wifiDisconnectTime = millis();
