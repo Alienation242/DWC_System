@@ -111,4 +111,48 @@ describe("MqttService Edge Cases", () => {
       }),
     );
   });
+
+  test("waitForBusy with no expectedSeq resolves immediately if already busy", async () => {
+    service.hardwareStatus = "busy";
+    await expect(service.waitForBusy(100, null)).resolves.toBeUndefined();
+  });
+
+  test("waitForBusy ignores mismatched seq if task not resumed_dosing", async () => {
+    service.hardwareStatus = "busy";
+    service.hardwareTask = "dosing";
+    service.hardwareSeq = 5;
+    // Should resolve immediately because task is not "resumed_dosing"
+    await expect(service.waitForBusy(100, 10)).resolves.toBeUndefined();
+  });
+
+  test("handleTelemetry error when io.emit fails", async () => {
+    service.io = {
+      emit: jest.fn(() => {
+        throw new Error("io error");
+      }),
+    };
+    const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation();
+    const payload = {
+      rawPH: 2048,
+      rawEC: 1024,
+      isTankEmpty: false,
+      isTankOverflowing: false,
+    };
+    const message = { toString: () => JSON.stringify(payload) };
+    await service.handleTelemetry(message);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "❌ Failed to process telemetry:",
+      expect.any(String),
+    );
+    consoleErrorSpy.mockRestore();
+  });
+
+  test("ignores unknown topic in message handler", () => {
+    const messageHandler = mockClient.on.mock.calls.find(
+      (c) => c[0] === "message",
+    )[1];
+    const unknownTopic = "kevin/dwc/unknown";
+    const message = { toString: () => "something" };
+    expect(() => messageHandler(unknownTopic, message)).not.toThrow();
+  });
 });

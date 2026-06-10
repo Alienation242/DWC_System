@@ -69,4 +69,22 @@ describe("RecipeEngine.executePumpAndWait", () => {
       "Failed to dose Water after 3 retries",
     );
   });
+
+  test("handles partial completion and sends second command", async () => {
+    mqtt.waitForBusy.mockResolvedValue();
+    jest
+      .spyOn(engine, "waitForDoseComplete")
+      .mockResolvedValue({ type: "complete", volume: 600 });
+    const result = await engine.executePumpAndWait("Water", "dose_water", 1000);
+    // Should have sent a second command for the remaining 400
+    expect(mqtt.sendCommand).toHaveBeenCalledTimes(2);
+    expect(mqtt.sendCommand).toHaveBeenNthCalledWith(
+      2,
+      "dose_water",
+      400,
+      "None",
+      2,
+    );
+    expect(result).toBe(1000);
+  });
 });

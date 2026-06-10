@@ -170,4 +170,10 @@ describe("calculateDeficit", () => {
   test("resolveCurve returns 0 if param missing", () => {
     expect(engine.resolveCurve(null, 0.5)).toBe(0);
   });
+
+  test("resolveCurveInPhase returns 0 for ripening when daysRemaining < 2", () => {
+    const node = { start: 100, end: 0 };
+    const result = engine.resolveCurveInPhase(node, 20, 21, true);
+    expect(result).toBe(0);
+  });
 });

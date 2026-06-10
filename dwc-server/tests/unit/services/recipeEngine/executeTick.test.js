@@ -225,4 +225,85 @@ describe("RecipeEngine.executeTick", () => {
       expect.any(Number),
     );
   });
+
+  test("_deliverToPot handles interruption and retries", async () => {
+    const sendCommandSpy = jest.spyOn(engine.mqtt, "sendCommand");
+    const waitForIdleMock = jest
+      .spyOn(engine.mqtt, "waitForIdle")
+      .mockRejectedValueOnce(new Error("OFFLINE_INTERRUPT"))
+      .mockResolvedValue();
+    const waitForDeviceMock = jest
+      .spyOn(engine.mqtt, "waitForDevice")
+      .mockResolvedValue();
+    const realDateNow = Date.now;
+    Date.now = jest.fn().mockReturnValue(1000);
+    const dosePromise = engine._deliverToPot(1000, "A");
+    await Promise.resolve();
+    Date.now = jest.fn().mockReturnValue(2000); // 1 second elapsed, pumped 50ml
+    await Promise.resolve();
+    // The loop should retry with remaining volume 950
+    expect(sendCommandSpy).toHaveBeenCalledTimes(2);
+    expect(sendCommandSpy).toHaveBeenNthCalledWith(
+      2,
+      "deliver",
+      950,
+      "A",
+      expect.any(Number),
+    );
+    Date.now = realDateNow;
+    waitForIdleMock.mockRestore();
+    waitForDeviceMock.mockRestore();
+    sendCommandSpy.mockRestore();
+  });
+
+  test("skips dilution when dilutionMl <= 50", async () => {
+    mockPrisma.systemState.findFirst.mockResolvedValue({
+      currentDay: 50,
+      sysVol: 0.1,
+    });
+    mockPrisma.telemetryLog.findFirst.mockResolvedValue({
+      realPH: 5.8,
+      realEC: 1200,
+    });
+    await engine.executeTick();
+    expect(engine.executePumpAndWait).not.toHaveBeenCalled();
+  });
+
+  test("ripening phase uses Finisher", async () => {
+    mockPrisma.systemState.findFirst.mockResolvedValue({
+      currentDay: 118,
+      sysVol: 18,
+    });
+    mockPrisma.telemetryLog.findFirst.mockResolvedValue({
+      realPH: 5.8,
+      realEC: 400,
+    });
+    // Override nutrient config to include Finisher in mixing sequence
+    fs.readFile.mockImplementation((path) => {
+      if (path.includes("nutrient_profile.json")) {
+        return Promise.resolve(
+          JSON.stringify({
+            carrierFluid: "Water",
+            carrierVolumeMl: 500,
+            mixingSequence: ["CalMag", "Micro", "Gro", "Bloom", "Finisher"],
+          }),
+        );
+      }
+      if (path.includes("system.json")) {
+        return Promise.resolve(
+          JSON.stringify({ mixing: { maxMixingTankVolumeMl: 5000 } }),
+        );
+      }
+      if (path.includes(".json")) {
+        return Promise.resolve(JSON.stringify(defaultProfile));
+      }
+      return Promise.reject(new Error("no mock"));
+    });
+    await engine.executeTick();
+    expect(engine.executePumpAndWait).toHaveBeenCalledWith(
+      "Finisher",
+      "dose_gro_fin_relay",
+      expect.any(Number),
+    );
+  });
 });

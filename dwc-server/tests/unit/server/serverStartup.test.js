@@ -27,4 +27,34 @@ describe("Server Startup Logic", () => {
     expect(mockPrisma.systemState.create).not.toHaveBeenCalled();
     expect(state.currentDay).toBe(50);
   });
+
+  const {
+    _runEngineLoop,
+    _engine,
+    _hardwareComms,
+  } = require("../../../src/server");
+
+  test("runEngineLoop executes engine tick and reschedules", async () => {
+    jest.useFakeTimers();
+    const tickSpy = jest.spyOn(_engine, "executeTick").mockResolvedValue();
+    const setTimeoutSpy = jest.spyOn(global, "setTimeout");
+    const loopPromise = _runEngineLoop();
+    await Promise.resolve(); // let first tick start
+    expect(tickSpy).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy).toHaveBeenCalledWith(
+      expect.any(Function),
+      5 * 60 * 1000,
+    );
+    tickSpy.mockRestore();
+    setTimeoutSpy.mockRestore();
+    jest.useRealTimers();
+  });
+
+  test("first telemetry triggers engine tick", () => {
+    const tickSpy = jest.spyOn(_engine, "executeTick").mockResolvedValue();
+    // Simulate the 'telemetry' event on hardwareComms
+    _hardwareComms.emit("telemetry", {});
+    expect(tickSpy).toHaveBeenCalledTimes(1);
+    tickSpy.mockRestore();
+  });
 });

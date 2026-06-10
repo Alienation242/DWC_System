@@ -146,4 +146,16 @@ describe("Server API Endpoints", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.automationMode).toBe("MANUAL_OVERRIDE");
   });
+
+  test("GET /api/calibration handles error", async () => {
+    CalibrationService.load.mockRejectedValue(new Error("fail"));
+    const res = await request(app).get("/api/calibration");
+    expect(res.statusCode).toBe(500);
+  });
+
+  test("POST /api/calibration handles error", async () => {
+    CalibrationService.load.mockRejectedValue(new Error("fail"));
+    const res = await request(app).post("/api/calibration").send({});
+    expect(res.statusCode).toBe(500);
+  });
 });
