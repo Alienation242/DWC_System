@@ -307,53 +307,37 @@ class RecipeEngine {
           try {
             await this.mqtt.waitForDevice("pump_node_1");
             console.log(
-              `🔌 Hardware reconnected. Checking completion of seq=${seq}...`,
+              `🔌 Hardware reconnected. Waiting for completion or resume of seq=${seq}...`,
             );
 
-            // Wait a moment for a possible dose_complete that might have been sent while offline
-            let completed = false;
-            const completionPromise = this.waitForDoseComplete(seq, 5000);
-            const completionResult = await Promise.race([
-              completionPromise,
-              new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
+            const result = await Promise.race([
+              this.waitForDoseComplete(seq, 60000),
+              this.mqtt.waitForBusy(60000, seq).then(() => ({ type: "busy" })),
             ]);
 
-            if (completionResult) {
+            if (result.type === "complete") {
+              remainingMl -= result.volume;
               console.log(
-                `✅ Dose seq=${seq} completed while offline. Volume: ${completionResult.volume}ml`,
+                `✅ Pump reported completion: ${result.volume}ml, remaining ${remainingMl.toFixed(1)}ml`,
               );
-              remainingMl -= completionResult.volume;
-              if (remainingMl <= 0.5) {
-                completed = true;
-                break;
-              }
-            }
-
-            if (!completed) {
-              console.log(`Waiting for resume of seq=${seq}...`);
-              await this.mqtt.waitForBusy(15000, seq);
+              if (remainingMl <= 0.5) break;
+            } else if (result.type === "busy") {
               console.log(`✅ Hardware resumed dose seq=${seq}.`);
-
-              const result = await Promise.race([
-                this.waitForDoseComplete(
-                  seq,
-                  2 * (remainingMl / flowRate) * 1000 + 10000,
-                ),
+              const finalResult = await Promise.race([
+                this.waitForDoseComplete(seq, 60000),
                 this.mqtt.waitForIdle().then(() => ({ type: "idle" })),
               ]);
-
-              if (result.type === "complete") {
-                remainingMl -= result.volume;
+              if (finalResult.type === "complete") {
+                remainingMl -= finalResult.volume;
                 if (remainingMl <= 0.5) break;
               } else {
                 remainingMl = 0;
                 break;
               }
             }
-          } catch (resumeErr) {
-            // Fallback to overflow shield
+          } catch (err) {
             console.warn(
-              `⚠️ No auto‑resume. Deducting assumed ${assumedPumped.toFixed(1)}ml`,
+              `⚠️ No completion or resume. Deducting assumed ${assumedPumped.toFixed(1)}ml`,
             );
             remainingMl -= assumedPumped;
             if (remainingMl < 0) remainingMl = 0;
