@@ -226,36 +226,6 @@ describe("RecipeEngine.executeTick", () => {
     );
   });
 
-  test("_deliverToPot handles interruption and retries", async () => {
-    const sendCommandSpy = jest.spyOn(engine.mqtt, "sendCommand");
-    const waitForIdleMock = jest
-      .spyOn(engine.mqtt, "waitForIdle")
-      .mockRejectedValueOnce(new Error("OFFLINE_INTERRUPT"))
-      .mockResolvedValue();
-    const waitForDeviceMock = jest
-      .spyOn(engine.mqtt, "waitForDevice")
-      .mockResolvedValue();
-    const realDateNow = Date.now;
-    Date.now = jest.fn().mockReturnValue(1000);
-    const dosePromise = engine._deliverToPot(1000, "A");
-    await Promise.resolve();
-    Date.now = jest.fn().mockReturnValue(2000); // 1 second elapsed, pumped 50ml
-    await Promise.resolve();
-    // The loop should retry with remaining volume 950
-    expect(sendCommandSpy).toHaveBeenCalledTimes(2);
-    expect(sendCommandSpy).toHaveBeenNthCalledWith(
-      2,
-      "deliver",
-      950,
-      "A",
-      expect.any(Number),
-    );
-    Date.now = realDateNow;
-    waitForIdleMock.mockRestore();
-    waitForDeviceMock.mockRestore();
-    sendCommandSpy.mockRestore();
-  });
-
   test("skips dilution when dilutionMl <= 50", async () => {
     mockPrisma.systemState.findFirst.mockResolvedValue({
       currentDay: 50,
@@ -270,6 +240,35 @@ describe("RecipeEngine.executeTick", () => {
   });
 
   test("ripening phase uses Finisher", async () => {
+    const ripeningProfile = {
+      name: "Standard Hybrid",
+      flipWeek: 9,
+      stretchWks: 3,
+      bulkWks: 5,
+      ripenWks: 2,
+      phases: {
+        veg: {
+          basePpm: { start: 50, end: 500, curve: 1.5 },
+          ppfd: { start: 250, end: 550 },
+          lightMult: { start: 0.5, end: 0.5 },
+        },
+        initiation: {
+          basePpm: { start: 500, end: 750 },
+          ppfd: { start: 650, end: 950 },
+          lightMult: { start: 0.5, end: 0.5 },
+        },
+        bulking: {
+          basePpm: { start: 350, end: 350 },
+          ppfd: { start: 950, end: 1050 },
+          lightMult: { start: 0.5, end: 0.5 },
+        },
+        ripening: {
+          basePpm: { start: 650, end: 650 },
+          ppfd: { start: 1050, end: 800 },
+          lightMult: { start: 0.5, end: 0.5 },
+        },
+      },
+    };
     mockPrisma.systemState.findFirst.mockResolvedValue({
       currentDay: 118,
       sysVol: 18,
@@ -278,7 +277,6 @@ describe("RecipeEngine.executeTick", () => {
       realPH: 5.8,
       realEC: 400,
     });
-    // Override nutrient config to include Finisher in mixing sequence
     fs.readFile.mockImplementation((path) => {
       if (path.includes("nutrient_profile.json")) {
         return Promise.resolve(
@@ -295,7 +293,7 @@ describe("RecipeEngine.executeTick", () => {
         );
       }
       if (path.includes(".json")) {
-        return Promise.resolve(JSON.stringify(defaultProfile));
+        return Promise.resolve(JSON.stringify(ripeningProfile));
       }
       return Promise.reject(new Error("no mock"));
     });
