@@ -17,8 +17,6 @@ describe("RecipeEngine.executeTick", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-
-    // Reset mock implementations to their default values
     mockPrisma.telemetryLog.findFirst.mockReset();
     mockPrisma.systemState.findFirst.mockReset();
     mockPrisma.batchState.create.mockReset();
@@ -27,11 +25,9 @@ describe("RecipeEngine.executeTick", () => {
     mqtt = new MockMqttService();
     engine = new RecipeEngine(mqtt);
 
-    // Stub expensive methods
     engine.executePumpAndWait = jest.fn().mockResolvedValue(100);
     engine._deliverToPot = jest.fn().mockResolvedValue();
 
-    // Default strain profile (Standard Hybrid)
     const defaultProfile = {
       name: "Standard Hybrid",
       flipWeek: 9,
@@ -83,7 +79,6 @@ describe("RecipeEngine.executeTick", () => {
       return Promise.reject(new Error("no mock"));
     });
 
-    // Default system state
     mockPrisma.systemState.findFirst.mockResolvedValue({
       currentDay: 50,
       sysVol: 18,
@@ -101,9 +96,11 @@ describe("RecipeEngine.executeTick", () => {
   });
 
   test("does nothing if EC within deadband", async () => {
+    // For day 50, target PPM ~428 → target EC = 856 µS/cm
+    // Set live EC to 850 (425 PPM) – deficit 3 PPM, within deadband 20
     await runTickWithTelemetry({
       realPH: 5.8,
-      realEC: 800,
+      realEC: 850,
       timestamp: new Date(),
     });
     expect(engine.executePumpAndWait).not.toHaveBeenCalled();
@@ -142,10 +139,13 @@ describe("RecipeEngine.executeTick", () => {
     expect(engine._deliverToPot).toHaveBeenCalled();
   });
 
-  test("triggers pH correction when pH is off", async () => {
+  test("triggers pH correction when pH is off and EC is stable", async () => {
+    // Force EC to be within deadband by setting live EC very close to target
+    // Target EC ~856 µS/cm, set live EC = 856 (428 PPM)
+    // Now pH error 7.2 - 5.8 = 1.4 -> will trigger pH correction
     await runTickWithTelemetry({
       realPH: 7.2,
-      realEC: 800,
+      realEC: 856,
       timestamp: new Date(),
     });
     expect(engine.executePumpAndWait).toHaveBeenCalledWith(
@@ -166,7 +166,7 @@ describe("RecipeEngine.executeTick", () => {
     Watchdog.isSafeToDose.mockResolvedValueOnce(false);
     await runTickWithTelemetry({
       realPH: 7.2,
-      realEC: 800,
+      realEC: 856,
       timestamp: new Date(),
     });
     expect(engine.executePumpAndWait).not.toHaveBeenCalledWith(
@@ -177,9 +177,13 @@ describe("RecipeEngine.executeTick", () => {
   });
 
   test("handles missing systemState gracefully", async () => {
-    jest.spyOn(console, "error").mockImplementation(() => {});
+    // Spy on console.error before running the tick
+    const consoleErrorSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
     mockPrisma.systemState.findFirst.mockResolvedValue(null);
     await engine.executeTick();
-    expect(console.error).toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
   });
 });
