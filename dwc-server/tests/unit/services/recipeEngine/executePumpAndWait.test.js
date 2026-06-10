@@ -1,6 +1,7 @@
 const RecipeEngine = require("../../../../src/services/recipeEngine");
 const Watchdog = require("../../../../src/services/watchdog");
 const MockMqttService = require("../../../mocks/mockMqttService");
+const fs = require("fs").promises;
 
 jest.mock("../../../../src/services/watchdog", () => ({
   isSafeToDose: jest.fn().mockResolvedValue(true),
@@ -99,5 +100,14 @@ describe("RecipeEngine.executePumpAndWait", () => {
       2,
     );
     expect(result).toBe(1000);
+  });
+
+  test("loads hardware config on first use", async () => {
+    // Ensure the engine hasn't loaded config yet
+    expect(engine.peristalticFlowMlPerSec).toBeNull();
+    // Call a method that triggers _ensureHardwareConfig
+    await engine.executePumpAndWait("Water", "dose_water", 10);
+    expect(engine.peristalticFlowMlPerSec).toBe(200.0);
+    expect(engine.submersibleFlowMlPerSec).toBe(50.0);
   });
 });
