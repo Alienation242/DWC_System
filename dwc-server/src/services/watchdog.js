@@ -3,6 +3,10 @@ const prisma = new PrismaClient();
 
 class Watchdog {
   static async isSafeToDose(pumpName, ml) {
+    const isWater = pumpName.toLowerCase().includes("water");
+
+    if (isWater) return true;
+
     let config = await prisma.watchdogConfig.findUnique({
       where: { pumpName },
     });

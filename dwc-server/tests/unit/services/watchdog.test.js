@@ -104,4 +104,11 @@ describe("Watchdog Unit Tests", () => {
     const safe = await Watchdog.isSafeToDose("Water", 5000);
     expect(safe).toBe(true);
   });
+
+  test("water does not create config and is always safe", async () => {
+    prisma.watchdogConfig.findUnique.mockResolvedValue(null);
+    const safe = await Watchdog.isSafeToDose("Water", 5000);
+    expect(safe).toBe(true);
+    expect(prisma.watchdogConfig.create).not.toHaveBeenCalled();
+  });
 });

@@ -53,4 +53,10 @@ describe("CalibrationService", () => {
     // 2048 * 8000 / 4095 ≈ 4000.9768 → rounds to 4001
     expect(ec).toBeCloseTo(4001, 0);
   });
+
+  test("load returns defaults on invalid JSON", async () => {
+    fs.readFile.mockResolvedValue("{invalid json}");
+    const cal = await CalibrationService.load();
+    expect(cal.pH.rawLow).toBe(0);
+  });
 });

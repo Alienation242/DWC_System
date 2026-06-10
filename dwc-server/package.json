@@ -8,7 +8,8 @@
     "clean": "node -e \"const fs=require('fs'); fs.rmSync('prisma/dev.db', {force:true})\" && npx prisma db push && npm run dev",
     "test": "jest",
     "test:coverage": "jest --coverage",
-    "test:watch": "jest --watchAll"
+    "test:integration": "jest tests/integration",
+    "test:unit": "jest tests/unit"
   },
   "keywords": [],
   "author": "",
