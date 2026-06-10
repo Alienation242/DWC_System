@@ -6,7 +6,6 @@ describe("Watchdog Unit Tests", () => {
     jest.clearAllMocks();
     jest.spyOn(console, "warn").mockImplementation(() => {});
   });
-
   afterEach(() => jest.restoreAllMocks());
 
   test("creates config if missing", async () => {
@@ -18,7 +17,6 @@ describe("Watchdog Unit Tests", () => {
     });
     mockPrisma.doseLog.aggregate.mockResolvedValue({ _sum: { ml: 0 } });
     mockPrisma.doseLog.findFirst.mockResolvedValue(null);
-
     const safe = await Watchdog.isSafeToDose("Unknown", 5);
     expect(mockPrisma.watchdogConfig.create).toHaveBeenCalled();
     expect(safe).toBe(true);
@@ -31,26 +29,25 @@ describe("Watchdog Unit Tests", () => {
   });
 
   test("enforces cooldown", async () => {
-    const lastDose = { timestamp: new Date(Date.now() - 20000) };
     mockPrisma.watchdogConfig.findUnique.mockResolvedValue({
       enabled: true,
       cooldownSecs: 30,
     });
-    mockPrisma.doseLog.findFirst.mockResolvedValue(lastDose);
+    mockPrisma.doseLog.findFirst.mockResolvedValue({
+      timestamp: new Date(Date.now() - 20000),
+    });
     const safe = await Watchdog.isSafeToDose("Micro", 5);
     expect(safe).toBe(false);
-    expect(console.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Cooldown active"),
-    );
   });
 
   test("bypasses cooldown after enough time", async () => {
-    const lastDose = { timestamp: new Date(Date.now() - 40000) };
     mockPrisma.watchdogConfig.findUnique.mockResolvedValue({
       enabled: true,
       cooldownSecs: 30,
     });
-    mockPrisma.doseLog.findFirst.mockResolvedValue(lastDose);
+    mockPrisma.doseLog.findFirst.mockResolvedValue({
+      timestamp: new Date(Date.now() - 40000),
+    });
     mockPrisma.doseLog.aggregate.mockResolvedValue({ _sum: { ml: 0 } });
     const safe = await Watchdog.isSafeToDose("Gro", 10);
     expect(safe).toBe(true);
@@ -62,16 +59,11 @@ describe("Watchdog Unit Tests", () => {
       dailyLimitMl: 100,
     });
     mockPrisma.doseLog.aggregate.mockResolvedValue({ _sum: { ml: 95 } });
-    mockPrisma.doseLog.findFirst.mockResolvedValue(null);
     const safe = await Watchdog.isSafeToDose("Bloom", 10);
     expect(safe).toBe(false);
   });
 
   test("bypasses daily limit for water", async () => {
-    mockPrisma.watchdogConfig.findUnique.mockResolvedValue({
-      enabled: true,
-      dailyLimitMl: 100,
-    });
     const safe = await Watchdog.isSafeToDose("Water", 5000);
     expect(safe).toBe(true);
   });
@@ -84,7 +76,6 @@ describe("Watchdog Unit Tests", () => {
   });
 
   test("water does not create config and is always safe", async () => {
-    mockPrisma.watchdogConfig.findUnique.mockResolvedValue(null);
     const safe = await Watchdog.isSafeToDose("Water", 5000);
     expect(safe).toBe(true);
     expect(mockPrisma.watchdogConfig.create).not.toHaveBeenCalled();

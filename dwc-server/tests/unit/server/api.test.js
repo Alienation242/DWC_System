@@ -2,7 +2,7 @@ const request = require("supertest");
 const app = require("../../../src/server");
 const CalibrationService = require("../../../src/services/calibrationService");
 const fs = require("fs").promises;
-const mockPrisma = require("../../../mocks/mockPrisma"); // <-- add this
+const mockPrisma = require("../../../mocks/mockPrisma");
 
 // Mock calibration service
 jest.mock("../../../src/services/calibrationService", () => ({
@@ -22,10 +22,8 @@ jest.mock("../../../src/services/mqttService", () => {
 
 // Mock file system for nutrient config endpoints
 jest.mock("fs", () => ({
-  promises: {
-    readFile: jest.fn(),
-    writeFile: jest.fn(),
-  },
+  existsSync: jest.fn(() => true),
+  promises: { readFile: jest.fn(), writeFile: jest.fn() },
 }));
 
 describe("Server API Endpoints", () => {

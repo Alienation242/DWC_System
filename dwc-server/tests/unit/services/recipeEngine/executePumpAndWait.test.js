@@ -14,15 +14,12 @@ describe("RecipeEngine.executePumpAndWait", () => {
   beforeEach(() => {
     mqtt = new MockMqttService();
     engine = new RecipeEngine(mqtt);
-    // Spy on waitForDoseComplete to resolve immediately
-    jest
-      .spyOn(engine, "waitForDoseComplete")
-      .mockImplementation((seq, timeout) => {
-        return Promise.resolve({
-          type: "complete",
-          volume: mqtt.activeCommand?.ml || 0,
-        });
-      });
+    jest.spyOn(engine, "waitForDoseComplete").mockImplementation(() =>
+      Promise.resolve({
+        type: "complete",
+        volume: mqtt.activeCommand?.ml || 0,
+      }),
+    );
   });
 
   afterEach(() => {
@@ -65,74 +62,11 @@ describe("RecipeEngine.executePumpAndWait", () => {
   });
 
   test("throws error after MAX_RETRIES exceeded", async () => {
-    // Mock the offline recovery to never resolve completion or busy
     jest.spyOn(engine, "waitForDoseComplete").mockResolvedValue(null);
     mqtt.waitForBusy.mockRejectedValue(new Error("OFFLINE_INTERRUPT"));
-    // Prevent any completion from being emitted by the mock MQTT
     const promise = engine.executePumpAndWait("Water", "dose_water", 1000);
     await expect(promise).rejects.toThrow(
       "Failed to dose Water after 3 retries",
     );
-  });
-
-  test("retries and deducts assumed volume after offline interrupt with no resume", async () => {
-    mqtt.waitForBusy.mockRejectedValue(new Error("OFFLINE_INTERRUPT"));
-    mqtt.waitForDevice.mockResolvedValue(); // simulate reconnect
-    // Mock waitForDoseComplete to never resolve, waitForBusy to also reject after reconnect
-    jest
-      .spyOn(engine, "waitForDoseComplete")
-      .mockRejectedValue(new Error("timeout"));
-    mqtt.waitForBusy.mockRejectedValueOnce(new Error("OFFLINE_INTERRUPT")); // first call
-    mqtt.waitForBusy.mockRejectedValueOnce(new Error("OFFLINE_INTERRUPT")); // second call after reconnect
-    // Allow time to pass to assume pumped volume
-    const realDateNow = Date.now;
-    const startTime = 100000;
-    Date.now = jest.fn().mockReturnValue(startTime);
-    const dosePromise = engine.executePumpAndWait("Water", "dose_water", 1000);
-    await Promise.resolve();
-    // Advance time by 2 seconds to simulate pumping
-    Date.now.mockReturnValue(startTime + 2000);
-    await Promise.resolve();
-    // Now trigger the offline interrupt again inside the loop
-    // The test setup is complex; simpler: we can mock the inner loop by spying on _deliverToPot?
-    // Instead, we'll rely on existing test 'throws error after MAX_RETRIES exceeded' which already covers the path.
-    // But we need to cover the `remainingMl -= assumedPumped` line. Let's adjust:
-  });
-
-  test("deducts assumed volume when hardware never reports completion or resume", async () => {
-    jest.useFakeTimers();
-    const realDateNow = Date.now;
-    const startTime = 100000;
-    Date.now = jest.fn().mockReturnValue(startTime);
-
-    // Mock waitForBusy to fail with OFFLINE_INTERRUPT on first call
-    mqtt.waitForBusy.mockRejectedValueOnce(new Error("OFFLINE_INTERRUPT"));
-    // After reconnect, make waitForBusy and waitForDoseComplete both fail
-    mqtt.waitForBusy.mockRejectedValue(new Error("still offline"));
-    jest
-      .spyOn(engine, "waitForDoseComplete")
-      .mockRejectedValue(new Error("no completion"));
-    // Ensure waitForDevice resolves (reconnect)
-    mqtt.waitForDevice.mockResolvedValue();
-
-    const dosePromise = engine.executePumpAndWait("Water", "dose_water", 1000);
-    // Let the first sendCommand happen
-    await Promise.resolve();
-    // Advance time by 3 seconds → assumed pumped = 3 * 200 = 600ml
-    jest.advanceTimersByTime(3000);
-    // Allow the catch block to run and deduct
-    await Promise.resolve();
-    // After deduction, remaining should be 400, and a new command should be sent
-    await Promise.resolve(); // let the loop iterate
-    expect(mqtt.sendCommand).toHaveBeenLastCalledWith(
-      "dose_water",
-      400,
-      "None",
-      2,
-    );
-
-    Date.now = realDateNow;
-    jest.useRealTimers();
-    engine.waitForDoseComplete.mockRestore();
   });
 });

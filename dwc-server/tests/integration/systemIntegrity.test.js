@@ -4,38 +4,31 @@ const mockPrisma = require("../../mocks/mockPrisma");
 
 describe("System Integrity - Watchdog & Database Constraints", () => {
   let engine;
-
   beforeEach(() => {
     engine = new RecipeEngine(null);
     jest.clearAllMocks();
     jest.spyOn(console, "warn").mockImplementation(() => {});
   });
+  afterEach(() => jest.restoreAllMocks());
 
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
-  test("COOLDOWN ENFORCEMENT: Watchdog blocks rapid-fire dosing", async () => {
-    const now = Date.now();
+  test("COOLDOWN ENFORCEMENT", async () => {
     mockPrisma.doseLog.findFirst.mockResolvedValue({
-      timestamp: new Date(now - 10000),
+      timestamp: new Date(Date.now() - 10000),
     });
     mockPrisma.watchdogConfig.findUnique.mockResolvedValue({
       enabled: true,
       cooldownSecs: 30,
     });
-
     const isSafe = await Watchdog.isSafeToDose("Micro", 2.0);
     expect(isSafe).toBe(false);
   });
 
-  test("DAILY LIMIT ENFORCEMENT: Watchdog blocks if daily limit exceeded", async () => {
+  test("DAILY LIMIT ENFORCEMENT", async () => {
     mockPrisma.watchdogConfig.findUnique.mockResolvedValue({
       enabled: true,
       dailyLimitMl: 10.0,
     });
     mockPrisma.doseLog.aggregate.mockResolvedValue({ _sum: { ml: 12.0 } });
-
     const isSafe = await Watchdog.isSafeToDose("Micro", 2.0);
     expect(isSafe).toBe(false);
   });

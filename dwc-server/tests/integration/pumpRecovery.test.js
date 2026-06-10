@@ -1,7 +1,6 @@
 const RecipeEngine = require("../../src/services/recipeEngine");
 const Watchdog = require("../../src/services/watchdog");
 const EventEmitter = require("events");
-const mockPrisma = require("../../../mocks/mockPrisma");
 
 jest.mock("../../src/services/watchdog", () => ({
   isSafeToDose: jest.fn().mockResolvedValue(true),

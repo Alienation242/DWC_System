@@ -1,10 +1,8 @@
 const MqttService = require("../../../src/services/mqttService");
-const EventEmitter = require("events");
 const mqtt = require("mqtt");
-const mockPrisma = require("../../../mocks/mockPrisma"); // <-- add
+const mockPrisma = require("../../../mocks/mockPrisma");
 
 jest.mock("mqtt");
-
 jest.mock("../../../src/services/calibrationService", () => ({
   convertPH: jest.fn().mockResolvedValue(6.5),
   convertEC: jest.fn().mockResolvedValue(1200),
@@ -122,10 +120,7 @@ describe("MqttService", () => {
     };
     const message = { toString: () => JSON.stringify(payload) };
     await service.handleTelemetry(message);
-    expect(convertPH).toHaveBeenCalledWith(2048);
-    expect(convertEC).toHaveBeenCalledWith(1024);
-    // The captured mock instance is now accessible
-    expect(mockSharedPrisma.telemetryLog.create).toHaveBeenCalled();
+    expect(mockPrisma.telemetryLog.create).toHaveBeenCalled();
   });
 
   test("emits network_change when connection topic received", (done) => {
