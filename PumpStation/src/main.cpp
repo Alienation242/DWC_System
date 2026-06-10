@@ -9,8 +9,12 @@ RTC_NOINIT_ATTR uint32_t lastSeqNum = 0;
 RTC_NOINIT_ATTR float pendingDoseMl = 0;
 RTC_NOINIT_ATTR int pendingDosePin = -1;
 RTC_NOINIT_ATTR unsigned long pendingDoseDuration = 0;
-RTC_NOINIT_ATTR uint32_t pendingDoseSeq = 0;      // sequence number of pending dose
-RTC_NOINIT_ATTR float pendingDoseRequestedMl = 0; // originally requested ml
+RTC_NOINIT_ATTR uint32_t pendingDoseSeq = 0;
+RTC_NOINIT_ATTR float pendingDoseRequestedMl = 0;
+
+// New: Store a completed dose that was never published (offline)
+RTC_NOINIT_ATTR uint32_t completedOfflineSeq = 0;
+RTC_NOINIT_ATTR float completedOfflineVolume = 0;
 
 // ========== 1. HARDWARE MAPPING ==========
 const int RELAY_PH_DOWN   = 13;
@@ -36,7 +40,7 @@ const char* TOPIC_STATUS     = "kevin/dwc/pump_node_1/status";
 const char* TOPIC_CONNECTION = "kevin/dwc/pump_node_1/connection"; 
 
 unsigned long wifiDisconnectTime = 0;
-const unsigned long WIFI_GRACE_PERIOD_MS = 8000; // 8 seconds of forgiveness
+const unsigned long WIFI_GRACE_PERIOD_MS = 30000; // 30 seconds
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -48,17 +52,16 @@ int activeValvePin = -1;
 unsigned long actionEndTime = 0;
 unsigned long lastReconnectAttempt = 0; 
 unsigned long currentDoseStartTime = 0;
-float currentDoseFlowRate = 20.0;   // peristaltic default
+float currentDoseFlowRate = 20.0;
 uint32_t currentDoseSeq = 0;
-float currentDoseRequestedMl = 0;   // added: requested ml for current dose
+float currentDoseRequestedMl = 0;
 
-float PERISTALTIC_ML_PER_SEC = 200.0;   
-float SUBMERSIBLE_ML_PER_SEC = 500.0;  
+float PERISTALTIC_ML_PER_SEC = 2.0;   
+float SUBMERSIBLE_ML_PER_SEC = 50.0;  
 const unsigned long MAX_RUNTIME_MS = 600000; 
 
 // ========== 4. FAIL-SAFE LOGIC ==========
 void emergencyStop() {
-  // Save pending dose if we were in the middle of dosing
   if (activeDosingPin != -1 && actionEndTime > millis()) {
     unsigned long remaining = actionEndTime - millis();
     if (remaining > 0) {
@@ -93,8 +96,15 @@ void publishStatus(const char* state, const char* task) {
   client.publish(TOPIC_STATUS, buffer);
 }
 
-// Publish dose completion with exact volume and sequence number
 void publishDoseComplete(uint32_t seq, float actualMl) {
+  // If the client is not connected, store this completion for later
+  if (!client.connected()) {
+    completedOfflineSeq = seq;
+    completedOfflineVolume = actualMl;
+    Serial.printf("📤 Network offline – saved completion for seq=%u (%.1f ml)\n", seq, actualMl);
+    return;
+  }
+  
   JsonDocument doc;
   doc["status"] = "dose_complete";
   doc["seq"] = seq;
@@ -103,11 +113,17 @@ void publishDoseComplete(uint32_t seq, float actualMl) {
   serializeJson(doc, buffer);
   client.publish(TOPIC_STATUS, buffer);
   Serial.printf("📤 Dose complete: seq=%u, vol=%.1f ml\n", seq, actualMl);
+  
+  // Clear any stored offline completion (this was the one)
+  if (completedOfflineSeq == seq) {
+    completedOfflineSeq = 0;
+    completedOfflineVolume = 0;
+  }
 }
 
-// ========== 5. SOFT-START FOR SUBMERSIBLE PUMP ==========
+// ========== 5. SOFT-START ==========
 void softStartSubmersible() {
-  delay(200); // Allow valve to stabilise
+  delay(200);
 }
 
 // ========== 6. FLOW SEQUENCE CONTROL ==========
@@ -164,7 +180,6 @@ void checkTimers() {
   if (millis() >= actionEndTime) {
     if (activeDosingPin != -1) {
       digitalWrite(activeDosingPin, LOW);
-      // Calculate exact volume pumped
       unsigned long elapsed = actionEndTime - currentDoseStartTime;
       float actualMl = (elapsed / 1000.0) * currentDoseFlowRate;
       publishDoseComplete(currentDoseSeq, actualMl);
@@ -234,6 +249,20 @@ void reconnect() {
     client.publish(TOPIC_CONNECTION, "online", true);
     client.subscribe(TOPIC_COMMANDS);
 
+    // First, send any pending completion that happened offline
+    if (completedOfflineSeq != 0 && completedOfflineVolume > 0) {
+      Serial.printf("📤 Re-sending offline completion for seq=%u, vol=%.1f ml\n", completedOfflineSeq, completedOfflineVolume);
+      JsonDocument doc;
+      doc["status"] = "dose_complete";
+      doc["seq"] = completedOfflineSeq;
+      doc["volume_ml"] = completedOfflineVolume;
+      char buffer[150];
+      serializeJson(doc, buffer);
+      client.publish(TOPIC_STATUS, buffer);
+      completedOfflineSeq = 0;
+      completedOfflineVolume = 0;
+    }
+
     // CASE 1: Dead Man's Switch paused the dose. Resume it!
     if (pendingDosePin != -1 && pendingDoseDuration > 0) {
       Serial.printf("🔁 Resuming paused dose after WiFi drop: pin %d for %lu ms (seq=%u)\n",
@@ -253,7 +282,7 @@ void reconnect() {
     // CASE 2: Network dropped briefly, but we NEVER stopped pumping.
     else if (isSystemBusy) {
       Serial.printf("📢 Reconnected while busy. Broadcasting status for seq=%u\n", currentDoseSeq);
-      publishStatus("busy", "resumed_dosing"); // Tell the server we are still on the job!
+      publishStatus("busy", "resumed_dosing");
     }
     // CASE 3: System is totally idle.
     else {
@@ -310,26 +339,23 @@ void setup() {
 }
 
 void loop() {
+  delay(10); // REMOVE IN PROD! Short delay to prevent slow clockspeeds (wokwi documentation recommendation)
   if (!client.connected()) {
-    // Start the timer the moment we lose connection
     if (wifiDisconnectTime == 0) {
       wifiDisconnectTime = millis();
     }
     
-    // Only trigger the Dead Man's Switch if the network has been dead longer than the grace period
     if (isSystemBusy && (millis() - wifiDisconnectTime > WIFI_GRACE_PERIOD_MS)) {
       Serial.println("⚠️ NETWORK CONNECTION LOST! Triggering Dead Man's Switch.");
       emergencyStop(); 
     }
     
-    // Handle reconnection
     unsigned long now = millis();
     if (now - lastReconnectAttempt > 5000) {
       lastReconnectAttempt = now;
       if (WiFi.status() == WL_CONNECTED) reconnect(); 
     }
   } else {
-    // Network is healthy, reset the disconnect timer
     wifiDisconnectTime = 0;
     client.loop(); 
   }

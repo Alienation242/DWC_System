@@ -7,6 +7,7 @@ const path = require("path");
 const TARGET_PH = 5.8;
 const CALMAG_PPM_PER_ML_L = 375.0;
 const BASE_PPM_PER_ML_L = 136.4;
+const SUBMERSIBLE_FLOW_ML_PER_SEC = 50.0; // matches firmware
 
 const NUTRIENT_PROFILE_PATH = path.join(
   process.cwd(),
@@ -14,30 +15,21 @@ const NUTRIENT_PROFILE_PATH = path.join(
   "nutrient_profile.json",
 );
 const SYSTEM_CONFIG_PATH = path.join(process.cwd(), "config", "system.json");
+const HARDWARE_CONFIG_PATH = path.join(
+  process.cwd(),
+  "config",
+  "hardware.json",
+);
 
 class RecipeEngine {
   constructor(mqttService) {
     this.mqtt = mqttService;
     this.isTicking = false;
+    this.peristalticFlowMlPerSec = null;
+    this.submersibleFlowMlPerSec = null;
   }
 
-  waitForDoseComplete(seq, timeoutMs) {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(
-        () => reject(new Error("DOSE_COMPLETE_TIMEOUT")),
-        timeoutMs,
-      );
-      const handler = (message) => {
-        if (message.seq === seq && message.status === "dose_complete") {
-          clearTimeout(timeout);
-          this.mqtt.removeListener("pump_message", handler);
-          resolve({ type: "complete", volume: message.volume_ml });
-        }
-      };
-      this.mqtt.on("pump_message", handler);
-    });
-  }
-
+  // ---------- Pure helpers ----------
   resolveCurve(param, progress) {
     if (!param) return 0;
     progress = Math.max(0, Math.min(1, progress));
@@ -47,212 +39,247 @@ class RecipeEngine {
     );
   }
 
-  getBiologicalStage(currentDay, profile) {
-    const fDay = (profile.flipWeek - 1) * 7;
-    const sEnd = fDay + profile.stretchWks * 7;
-    const bEnd = sEnd + profile.bulkWks * 7;
-    const rEnd = bEnd + profile.ripenWks * 7;
-
-    if (currentDay <= fDay)
-      return {
-        stage: "VEGETATIVE",
-        progress: currentDay / Math.max(1, fDay),
-        data: profile.phases.veg,
-      };
-    if (currentDay <= sEnd)
-      return {
-        stage: "INITIATION",
-        progress: (currentDay - fDay) / Math.max(1, profile.stretchWks * 7),
-        data: profile.phases.initiation,
-      };
-    if (currentDay <= bEnd)
-      return {
-        stage: "BULKING",
-        progress: (currentDay - sEnd) / Math.max(1, profile.bulkWks * 7),
-        data: profile.phases.bulking,
-      };
-    if (currentDay < rEnd - 1)
-      return {
-        stage: "RIPENING",
-        progress: (currentDay - bEnd) / Math.max(1, profile.ripenWks * 7),
-        data: profile.phases.ripening,
-      };
-    return { stage: "FLUSH", progress: 1.0, data: null };
+  resolveCurveInPhase(node, dayInPhase, maxDaysInPhase, isRipeningPpm = false) {
+    if (!node) return 0;
+    if (isRipeningPpm) {
+      const daysRemaining = maxDaysInPhase - dayInPhase;
+      if (daysRemaining < 2) return 0;
+      return node.start;
+    }
+    const progress =
+      maxDaysInPhase > 1 ? (dayInPhase - 1) / (maxDaysInPhase - 1) : 1;
+    return (
+      node.start +
+      (node.end - node.start) * Math.pow(progress, node.curve || 1.0)
+    );
   }
 
-  calculateDeficitMath(targetPPM, deficitPPM, stage, exactDays, sysVol) {
-    if (stage === "FLUSH")
-      return { cal: 0, gro: 0, micro: 0, bloom: 0, fin: 0 };
+  getTargetsForDay(profile, currentDay) {
+    const flipDay = (profile.flipWeek - 1) * 7;
+    const stretchDays = profile.stretchWks * 7;
+    const bulkDays = profile.bulkWks * 7;
+    const ripenDays = profile.ripenWks * 7;
 
-    const targetCalPpm = stage === "VEGETATIVE" ? 150 : 250;
-    const idealCalMagPpm = Math.min(targetPPM, targetCalPpm);
-    const idealBasePpm = Math.max(0, targetPPM - idealCalMagPpm);
+    let phase, dayInPhase, maxDaysInPhase;
 
-    const ppmNeededCal = deficitPPM * (idealCalMagPpm / targetPPM);
-    const ppmNeededBase = deficitPPM * (idealBasePpm / targetPPM);
+    if (currentDay <= flipDay) {
+      phase = "veg";
+      dayInPhase = currentDay;
+      maxDaysInPhase = flipDay;
+    } else if (currentDay <= flipDay + stretchDays) {
+      phase = "initiation";
+      dayInPhase = currentDay - flipDay;
+      maxDaysInPhase = stretchDays;
+    } else if (currentDay <= flipDay + stretchDays + bulkDays) {
+      phase = "bulking";
+      dayInPhase = currentDay - (flipDay + stretchDays);
+      maxDaysInPhase = bulkDays;
+    } else {
+      phase = "ripening";
+      dayInPhase = Math.min(
+        currentDay - (flipDay + stretchDays + bulkDays),
+        ripenDays,
+      );
+      maxDaysInPhase = ripenDays;
+    }
 
-    const calMag_ml = (ppmNeededCal / CALMAG_PPM_PER_ML_L) * sysVol;
-    const totalBase_ml = (ppmNeededBase / BASE_PPM_PER_ML_L) * sysVol;
+    const pNode = profile.phases[phase];
+    const targetPPM = this.resolveCurveInPhase(
+      pNode.basePpm,
+      dayInPhase,
+      maxDaysInPhase,
+      phase === "ripening",
+    );
+    const stageMap = {
+      veg: "VEGETATIVE",
+      initiation: "INITIATION",
+      bulking: "BULKING",
+      ripening: "RIPENING",
+    };
+    return { phase: stageMap[phase], targetPPM };
+  }
+
+  getDynamicTarget(profile, currentDay, livePPFD) {
+    const flipDay = (profile.flipWeek - 1) * 7;
+    const stretchDays = profile.stretchWks * 7;
+    const bulkDays = profile.bulkWks * 7;
+    const ripenDays = profile.ripenWks * 7;
+
+    let phase, dayInPhase, maxDaysInPhase;
+
+    if (currentDay <= flipDay) {
+      phase = "veg";
+      dayInPhase = currentDay;
+      maxDaysInPhase = flipDay;
+    } else if (currentDay <= flipDay + stretchDays) {
+      phase = "initiation";
+      dayInPhase = currentDay - flipDay;
+      maxDaysInPhase = stretchDays;
+    } else if (currentDay <= flipDay + stretchDays + bulkDays) {
+      phase = "bulking";
+      dayInPhase = currentDay - (flipDay + stretchDays);
+      maxDaysInPhase = bulkDays;
+    } else {
+      phase = "ripening";
+      dayInPhase = Math.min(
+        currentDay - (flipDay + stretchDays + bulkDays),
+        ripenDays,
+      );
+      maxDaysInPhase = ripenDays;
+    }
+
+    const pNode = profile.phases[phase];
+    const isRipening = phase === "ripening";
+    const stageMap = {
+      veg: "VEGETATIVE",
+      initiation: "INITIATION",
+      bulking: "BULKING",
+      ripening: "RIPENING",
+    };
+
+    const floorPpm = this.resolveCurveInPhase(
+      pNode.basePpm,
+      dayInPhase,
+      maxDaysInPhase,
+      isRipening,
+    );
+    if (isRipening && floorPpm === 0)
+      return { phase: stageMap[phase], targetPPM: 0 };
+
+    const targetPpfd = this.resolveCurveInPhase(
+      pNode.ppfd,
+      dayInPhase,
+      maxDaysInPhase,
+      false,
+    );
+    const lightMult = this.resolveCurveInPhase(
+      pNode.lightMult,
+      dayInPhase,
+      maxDaysInPhase,
+      false,
+    );
+    const effectivePPFD = livePPFD == null ? targetPpfd : livePPFD;
+    const excessLight = Math.max(0, effectivePPFD - targetPpfd);
+    const maxBoost = 150; // maximum PPM increase from light
+    const dynamicTargetPpm =
+      floorPpm + Math.min(maxBoost, excessLight * lightMult);
+
+    return { phase: stageMap[phase], targetPPM: dynamicTargetPpm };
+  }
+
+  calculateDeficit(targetPPM, deficitPPM, stage, currentDay, sysVol) {
+    if (targetPPM <= 0) return { cal: 0, gro: 0, micro: 0, bloom: 0, fin: 0 };
+
+    const targetCalCap = stage.toUpperCase() === "VEGETATIVE" ? 150.0 : 250.0;
+    const targetCalPpm = Math.min(targetPPM, targetCalCap);
+    const targetBasePpm = Math.max(0, targetPPM - targetCalPpm);
+
+    const ratioCal = targetCalPpm / targetPPM;
+    const ratioBase = targetBasePpm / targetPPM;
+
+    const deficitCalPpm = deficitPPM * ratioCal;
+    const deficitBasePpm = deficitPPM * ratioBase;
+
+    const calMl = (deficitCalPpm * sysVol) / CALMAG_PPM_PER_ML_L;
+    const totalBaseMl = (deficitBasePpm * sysVol) / BASE_PPM_PER_ML_L;
 
     let gro = 0,
       micro = 0,
       bloom = 0,
       fin = 0;
+    const s = stage.toUpperCase();
 
-    if (stage === "RIPENING") {
-      fin = totalBase_ml;
+    if (s === "RIPENING") {
+      fin = totalBaseMl;
     } else {
-      let pG = 1,
-        pM = 1,
-        pB = 1;
-      if (exactDays <= 7) {
-        pG = 1;
-        pM = 1;
-        pB = 1;
-      } else if (stage === "VEGETATIVE") {
-        pG = 3;
-        pM = 2;
-        pB = 1;
-      } else if (stage === "INITIATION") {
-        pG = 1;
-        pM = 2;
-        pB = 2;
-      } else if (stage === "BULKING") {
-        pG = 1;
-        pM = 2;
-        pB = 3;
+      let partsG = 1,
+        partsM = 1,
+        partsB = 1;
+      if (currentDay <= 7) {
+        partsG = 1;
+        partsM = 1;
+        partsB = 1;
+      } else if (s === "VEGETATIVE") {
+        partsG = 3;
+        partsM = 2;
+        partsB = 1;
+      } else if (s === "INITIATION") {
+        partsG = 1;
+        partsM = 2;
+        partsB = 2;
+      } else if (s === "BULKING") {
+        partsG = 1;
+        partsM = 2;
+        partsB = 3;
       }
-
-      const totalParts = pG + pM + pB;
-      const mlPerPart = totalBase_ml / totalParts;
-      gro = pG * mlPerPart;
-      micro = pM * mlPerPart;
-      bloom = pB * mlPerPart;
+      const totalParts = partsG + partsM + partsB;
+      const mlPerPart = totalBaseMl / totalParts;
+      gro = partsG * mlPerPart;
+      micro = partsM * mlPerPart;
+      bloom = partsB * mlPerPart;
     }
-    return { cal: calMag_ml, gro, micro, bloom, fin };
+    return { cal: calMl, gro, micro, bloom, fin };
   }
 
-  async executeTick() {
-    if (this.isTicking) {
-      console.warn(
-        "⚠️ Engine is currently active. Ignoring overlapping tick request.",
-      );
-      return;
-    }
-
-    if (this.mqtt.deviceRegistry["pump_node_1"] === "offline") {
-      console.error("🛑 CRITICAL: Pump Manifold is OFFLINE. Aborting tick.");
-      return;
-    }
-    if (this.mqtt.deviceRegistry["sensor_node_1"] === "offline") {
-      console.error(
-        "🛑 CRITICAL: Sensor Node is OFFLINE. Aborting tick to prevent blind dosing.",
-      );
-      return;
-    }
-
-    this.isTicking = true;
-    console.log("\n--- 🧠 [RECIPE ENGINE] TICK INITIATED ---");
-
+  async _ensureHardwareConfig() {
+    if (this.peristalticFlowMlPerSec !== null) return;
     try {
-      const state = await prisma.systemState.findUnique({ where: { id: 1 } });
-      if (!state || state.automationMode === "MANUAL_OVERRIDE") return;
-
-      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
-      const recentLogs = await prisma.telemetryLog.findMany({
-        take: 5,
-        where: { timestamp: { gte: twoMinutesAgo } },
-        orderBy: { timestamp: "desc" },
-      });
-
-      if (recentLogs.length === 0)
-        return console.log("⏳ Waiting for fresh telemetry...");
-
-      const currentStatus = recentLogs[0];
-      if (currentStatus.isTankOverflowing) {
-        this.mqtt.sendCommand("stop");
-        return console.error(
-          "🛑 CRITICAL: Pot is overflowing! Aborting all pump operations.",
-        );
-      }
-
-      const validLogs = recentLogs.filter((log) => !log.isTankEmpty);
-
-      let livePH = 5.8;
-      let livePPM = 0;
-
-      if (validLogs.length > 0) {
-        livePH = validLogs.reduce((s, l) => s + l.realPH, 0) / validLogs.length;
-        livePPM =
-          validLogs.reduce((s, l) => s + l.realEC, 0) / validLogs.length;
-      } else if (!currentStatus.isTankEmpty) {
-        return console.log("⏳ Waiting for stable wet telemetry...");
-      }
-
-      console.log(
-        `📊 Live | pH: ${livePH.toFixed(2)} | PPM: ${Math.round(livePPM)}`,
-      );
-
-      const rawProfile = await fs.readFile(
-        path.join(process.cwd(), state.currentProfilePath),
-        "utf8",
-      );
-      const strainData = JSON.parse(rawProfile);
-      const bio = this.getBiologicalStage(state.currentDay, strainData);
-
-      let baseTarget = 0;
-      if (bio.stage === "FLUSH") {
-        console.log("💧 FLUSH STAGE: 0 PPM Target.");
-        baseTarget = 0;
-      } else {
-        baseTarget = this.resolveCurve(bio.data.basePpm, bio.progress);
-        console.log(
-          `🎯 Protocol | Phase: ${bio.stage} | Target: ${baseTarget.toFixed(0)} PPM`,
-        );
-      }
-
-      if (currentStatus.isTankEmpty) {
-        console.warn(
-          "⚠️ POT EMPTY: Triggering emergency RO water top-off batch!",
-        );
-        await this.evaluateAndDose(
-          livePH,
-          livePPM,
-          baseTarget,
-          bio.stage,
-          state.currentDay,
-          state.sysVol,
-          true,
-        );
-        return;
-      }
-
-      await this.evaluateAndDose(
-        livePH,
-        livePPM,
-        baseTarget,
-        bio.stage,
-        state.currentDay,
-        state.sysVol,
-        false,
-      );
-    } catch (error) {
-      console.error("❌ Recipe Engine Error:", error);
-      this.mqtt.sendCommand("stop");
-    } finally {
-      this.isTicking = false;
+      const raw = await fs.readFile(HARDWARE_CONFIG_PATH, "utf8");
+      const config = JSON.parse(raw);
+      this.peristalticFlowMlPerSec = config.peristaltic_ml_per_sec;
+      this.submersibleFlowMlPerSec = config.submersible_ml_per_sec;
+    } catch (err) {
+      console.warn("⚠️ Could not load hardware.json, using defaults");
+      this.peristalticFlowMlPerSec = 2.0; // safe fallback
+      this.submersibleFlowMlPerSec = 50.0;
     }
   }
 
-  async executePumpAndWait(pumpName, actionStr, amountMl, batchId = null) {
+  // ---------- Core delivery helper (with retry & overflow shield) ----------
+  async _deliverToPot(volumeMl, targetPot = "A") {
+    await this._ensureHardwareConfig();
+    if (volumeMl <= 0.5) return;
+    let remaining = volumeMl;
+    while (remaining > 0.5) {
+      await this.mqtt.waitForDevice("pump_node_1");
+      const startTime = Date.now();
+      try {
+        this.mqtt.sendCommand(
+          "deliver",
+          remaining,
+          targetPot,
+          this.mqtt.nextSeq(),
+        );
+        await this.mqtt.waitForIdle();
+        remaining = 0;
+      } catch (err) {
+        if (err.message === "OFFLINE_INTERRUPT") {
+          const elapsed = Date.now() - startTime;
+          const pumped = (elapsed / 1000) * this.submersibleFlowMlPerSec;
+          remaining -= pumped;
+          if (remaining > 0.5) {
+            console.warn(
+              `⚠️ Delivery interrupted. Remaining: ${remaining.toFixed(1)}ml. Waiting...`,
+            );
+          }
+        } else {
+          throw err;
+        }
+      }
+    }
+  }
+
+  // ---------- Single pump dose (with watchdog, retries, and resume logic) ----------
+  async executePumpAndWait(pumpName, actionStr, amountMl) {
+    await this._ensureHardwareConfig();
     if (amountMl <= 0.5) return 0;
     const isWater = pumpName.toLowerCase().includes("water");
     const safeMl = isWater ? amountMl : Math.min(15.0, amountMl);
-    const flowRate = 20.0; // from config
+    const flowRate = this.peristalticFlowMlPerSec;
 
     if (!(await Watchdog.isSafeToDose(pumpName, safeMl))) return 0;
 
-    console.log(`⏳ Locking Manifold: ${pumpName} (${safeMl.toFixed(1)}ml)...`);
+    console.log(`⏳ Dosing: ${pumpName} (${safeMl.toFixed(1)}ml)`);
 
     let remainingMl = safeMl;
     let retries = 0;
@@ -264,107 +291,96 @@ class RecipeEngine {
 
       const seq = this.mqtt.nextSeq();
       let doseStartTime = null;
-      let doseCompleted = false;
 
       try {
         this.mqtt.sendCommand(actionStr, remainingMl, "None", seq);
         await this.mqtt.waitForBusy(10000);
-        doseStartTime = Date.now(); // <-- Record EXACT start time
+        doseStartTime = Date.now();
 
         const result = await Promise.race([
           this.waitForDoseComplete(
             seq,
-            2 * (remainingMl / flowRate) * 1000 + 10000,
+            2 * (remainingMl / flowRate) * 1000 + 30000,
           ),
           this.mqtt.waitForIdle().then(() => ({ type: "idle" })),
         ]);
 
         if (result.type === "complete") {
           remainingMl -= result.volume;
-          if (remainingMl <= 0.5) {
-            doseCompleted = true;
-            break;
-          }
+          if (remainingMl <= 0.5) break;
           console.log(
-            `📦 Pump reported ${result.volume}ml dosed, remaining ${remainingMl.toFixed(1)}ml`,
+            `📦 Pump reported ${result.volume}ml, remaining ${remainingMl.toFixed(1)}ml`,
           );
         } else {
           remainingMl = 0;
-          doseCompleted = true;
           break;
         }
       } catch (err) {
         if (err.message === "OFFLINE_INTERRUPT") {
           retries++;
           console.warn(
-            `⚠️ Disconnect during dose. Server will await hardware resume. Retry ${retries}/${MAX_RETRIES}`,
+            `⚠️ Disconnect during dose. Retry ${retries}/${MAX_RETRIES}`,
           );
 
-          // --- THE OVERFLOW SHIELD ---
-          // Calculate max possible volume pumped before the crash
           let assumedPumped = 0;
-          if (doseStartTime !== null) {
-            let elapsed = Date.now() - doseStartTime;
-            assumedPumped = (elapsed / 1000) * flowRate;
+          if (doseStartTime) {
+            assumedPumped = ((Date.now() - doseStartTime) / 1000) * flowRate;
           }
 
           try {
             await this.mqtt.waitForDevice("pump_node_1");
             console.log(
-              `🔌 Hardware reconnected. Waiting for resume announcement for seq=${seq}...`,
-            );
-            await this.mqtt.waitForBusy(15000, seq);
-            console.log(
-              `✅ Hardware successfully resumed dose seq=${seq}. Re-attaching listener.`,
+              `🔌 Hardware reconnected. Waiting for completion or resume of seq=${seq}...`,
             );
 
             const result = await Promise.race([
-              this.waitForDoseComplete(
-                seq,
-                2 * (remainingMl / flowRate) * 1000 + 10000,
-              ),
-              this.mqtt.waitForIdle().then(() => ({ type: "idle" })),
+              this.waitForDoseComplete(seq, 60000),
+              this.mqtt.waitForBusy(60000, seq).then(() => ({ type: "busy" })),
             ]);
 
             if (result.type === "complete") {
               remainingMl -= result.volume;
-              if (remainingMl <= 0.5) {
-                doseCompleted = true;
+              console.log(
+                `✅ Pump reported completion: ${result.volume}ml, remaining ${remainingMl.toFixed(1)}ml`,
+              );
+              if (remainingMl <= 0.5) break;
+            } else if (result.type === "busy") {
+              console.log(`✅ Hardware resumed dose seq=${seq}.`);
+              const finalResult = await Promise.race([
+                this.waitForDoseComplete(seq, 60000),
+                this.mqtt.waitForIdle().then(() => ({ type: "idle" })),
+              ]);
+              if (finalResult.type === "complete") {
+                remainingMl -= finalResult.volume;
+                if (remainingMl <= 0.5) break;
+              } else {
+                remainingMl = 0;
                 break;
               }
-            } else {
-              remainingMl = 0;
-              doseCompleted = true;
-              break;
             }
-            continue;
-          } catch (resumeErr) {
-            // If it fails to resume, it suffered a true power loss.
-            // Deduct the volume to protect the physical pot!
+          } catch (err) {
             console.warn(
-              `⚠️ Hardware did not auto-resume (power crash). Deducting assumed volume: ${assumedPumped.toFixed(1)}ml`,
+              `⚠️ No completion or resume. Deducting assumed ${assumedPumped.toFixed(1)}ml`,
             );
             remainingMl -= assumedPumped;
             if (remainingMl < 0) remainingMl = 0;
-            continue;
           }
         } else {
           throw err;
         }
       }
+    }
 
-      if (remainingMl > 0.5 && retries >= MAX_RETRIES) {
-        throw new Error(
-          `Failed to dose ${pumpName} after ${MAX_RETRIES} retries, ${remainingMl.toFixed(1)}ml remaining`,
-        );
-      }
+    if (remainingMl > 0.5 && retries >= MAX_RETRIES) {
+      throw new Error(
+        `Failed to dose ${pumpName} after ${MAX_RETRIES} retries, ${remainingMl.toFixed(1)}ml left`,
+      );
     }
 
     await Watchdog.logSuccessfulDose(pumpName, safeMl);
     return safeMl;
   }
 
-  // Helper: wait for a dose_complete message with matching seq
   waitForDoseComplete(seq, timeoutMs) {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(
@@ -382,269 +398,228 @@ class RecipeEngine {
     });
   }
 
-  async evaluateAndDose(
-    livePH,
-    livePPM,
-    targetPPM,
-    stage,
-    currentDay,
-    sysVol,
-    forceWaterTopOff,
-  ) {
-    const deadbandPPM = Math.max(15, Math.min(50, targetPPM * 0.1));
-    const sysConfig = JSON.parse(
-      await fs
+  // ---------- Main tick ----------
+  async executeTick() {
+    if (this.isTicking) return;
+    this.isTicking = true;
+
+    try {
+      console.log(`\n--- 🧠 [RECIPE ENGINE] TICK ---`);
+
+      const telemetry = await prisma.telemetryLog.findFirst({
+        orderBy: { timestamp: "desc" },
+      });
+      if (!telemetry) {
+        console.log("⏳ No telemetry yet.");
+        this.isTicking = false;
+        return;
+      }
+
+      const systemState = await prisma.systemState.findFirst();
+      if (!systemState) throw new Error("SystemState missing");
+
+      // --- Load all configuration files once ---
+      const strainProfilePath =
+        systemState.currentProfilePath ||
+        path.join(process.cwd(), "src/recipes/default.json");
+      const rawStrain = await fs.readFile(strainProfilePath, "utf8");
+      const strainProfile = JSON.parse(rawStrain);
+
+      const rawNutrient = await fs.readFile(NUTRIENT_PROFILE_PATH, "utf8");
+      const nutrientConfig = JSON.parse(rawNutrient);
+
+      const rawSystem = await fs
         .readFile(SYSTEM_CONFIG_PATH, "utf8")
-        .catch(() => '{"mixing":{"maxMixingTankVolumeMl":5000}}'),
-    );
-    const MAX_BATCH_ML = sysConfig.mixing?.maxMixingTankVolumeMl || 5000.0;
+        .catch(() => '{"mixing":{"maxMixingTankVolumeMl":5000}}');
+      const systemConfig = JSON.parse(rawSystem);
+      const MAX_BATCH_ML = systemConfig.mixing?.maxMixingTankVolumeMl || 5000;
 
-    // ==========================================
-    // 1. EC PRIORITY: DEFICIT (Nutrients Needed)
-    // ==========================================
-    if (livePPM < targetPPM - deadbandPPM || forceWaterTopOff) {
-      const deficitPPM = forceWaterTopOff ? 0 : targetPPM - livePPM;
-      if (!forceWaterTopOff)
-        console.log(`📉 EC Deficit Detected (-${deficitPPM.toFixed(0)} PPM)`);
+      const currentDay = systemState.currentDay || 1;
+      const sysVol = systemState.sysVol || 18.0;
 
-      const rawDose = this.calculateDeficitMath(
-        targetPPM,
-        deficitPPM,
-        stage,
+      const dynamicData = this.getDynamicTarget(
+        strainProfile,
         currentDay,
-        sysVol,
+        null,
       );
-      const nutConfig = JSON.parse(
-        await fs
-          .readFile(NUTRIENT_PROFILE_PATH, "utf8")
-          .catch(
-            () =>
-              '{"carrierFluid":"Fresh_Water","carrierVolumeMl":500,"mixingSequence":[]}',
-          ),
-      );
+      const targetPPM = dynamicData.targetPPM;
+      const stage = dynamicData.phase;
 
-      const MAX_NUT_PER_TICK = 15.0;
-      let nutrientScale = 1.0;
-      let batchScale = 1.0;
-
-      const highestNutrient = Math.max(
-        rawDose.cal,
-        rawDose.micro,
-        rawDose.gro,
-        rawDose.bloom,
-        rawDose.fin,
-      );
-      if (highestNutrient > MAX_NUT_PER_TICK) {
-        nutrientScale = MAX_NUT_PER_TICK / highestNutrient;
-      }
-
-      const desiredCarrier = forceWaterTopOff
-        ? MAX_BATCH_ML - 100
-        : nutConfig.carrierVolumeMl;
-      const theoreticalNutrientVol =
-        (rawDose.cal +
-          rawDose.micro +
-          rawDose.gro +
-          rawDose.bloom +
-          rawDose.fin) *
-        nutrientScale;
-      const theoreticalTotalBatch = desiredCarrier + theoreticalNutrientVol;
-
-      if (theoreticalTotalBatch > MAX_BATCH_ML) {
-        batchScale = MAX_BATCH_ML / theoreticalTotalBatch;
-      }
-
-      const finalCarrierMl = desiredCarrier * batchScale;
-      const finalNutScale = nutrientScale * batchScale;
-
-      rawDose.cal *= finalNutScale;
-      rawDose.micro *= finalNutScale;
-      rawDose.gro *= finalNutScale;
-      rawDose.bloom *= finalNutScale;
-      rawDose.fin *= finalNutScale;
-
-      console.log(`\n🚀 --- INITIATING NUTRIENT BATCH ---`);
-      await this.executePumpAndWait(
-        nutConfig.carrierFluid,
-        "dose_water",
-        finalCarrierMl,
-      );
-
-      let totalInjected = 0;
-      const doseMap = {
-        CalMag: { topic: "dose_calmag", amount: rawDose.cal },
-        Micro: { topic: "dose_micro", amount: rawDose.micro },
-        Gro: { topic: "dose_gro_fin_relay", amount: rawDose.gro },
-        Bloom: { topic: "dose_bloom", amount: rawDose.bloom },
-        Finisher: { topic: "dose_gro_fin_relay", amount: rawDose.fin },
-      };
-
-      for (const nut of nutConfig.mixingSequence) {
-        if (doseMap[nut] && doseMap[nut].amount > 0.5) {
-          totalInjected += await this.executePumpAndWait(
-            nut,
-            doseMap[nut].topic,
-            doseMap[nut].amount,
-          );
-        }
-      }
-
-      const totalVolume = finalCarrierMl + totalInjected;
-      const blowoutVolume = totalVolume * 1.2;
+      const liveEC = telemetry.realEC;
+      const livePPM = liveEC * 0.5;
+      const livePH = telemetry.realPH;
 
       console.log(
-        `🌊 Delivering ${totalVolume.toFixed(1)}ml (Blowout ${blowoutVolume.toFixed(1)}ml) to Pot A...`,
+        `📊 Live | pH: ${livePH.toFixed(2)} | PPM: ${livePPM.toFixed(0)}`,
       );
-
-      let remainingDeliver = blowoutVolume;
-      while (remainingDeliver > 0.5) {
-        await this.mqtt.waitForDevice("pump_node_1");
-        let startTime = Date.now();
-        try {
-          this.mqtt.sendCommand("deliver", remainingDeliver, "A");
-          await this.mqtt.waitForIdle();
-          remainingDeliver = 0;
-        } catch (err) {
-          if (err.message === "OFFLINE_INTERRUPT") {
-            let elapsedMs = Date.now() - startTime;
-            let pumpedMl = (elapsedMs / 1000) * 50.0; // Submersible flow rate
-            remainingDeliver -= pumpedMl;
-            if (remainingDeliver > 0.5)
-              console.warn(
-                `⚠️ Delivery interrupted. Remaining: ${remainingDeliver.toFixed(1)}ml. Waiting to resume...`,
-              );
-          } else throw err;
-        }
-      }
-      console.log(`✅ --- BATCH SEQUENCE COMPLETE --- \n`);
-      return;
-    }
-
-    // ==========================================
-    // 2. EC PRIORITY: EXCESS (Dilution Required)
-    // ==========================================
-    else if (livePPM > targetPPM + deadbandPPM && !forceWaterTopOff) {
-      const excessPPM = livePPM - targetPPM;
       console.log(
-        `📈 EC Excess Detected (+${excessPPM.toFixed(0)} PPM) | Priority override: Diluting before pH.`,
+        `🎯 Target | Day: ${currentDay} | Phase: ${stage} | PPM: ${targetPPM.toFixed(0)}`,
       );
 
-      // V_add = V_sys * ((PPM_live / PPM_target) - 1)
-      let dilutionMl = MAX_BATCH_ML;
-      if (targetPPM > 0) {
-        dilutionMl = sysVol * 1000 * (livePPM / targetPPM - 1);
+      const deadbandPPM = 20;
+
+      if (telemetry.isTankOverflowing) {
+        console.error(
+          "💥 CRITICAL: Tank overflow detected! Stopping all pumps and aborting tick.",
+        );
+        await this.mqtt.sendCommand("stop", 0, "None", this.mqtt.nextSeq());
+        this.isTicking = false;
+        return;
       }
-      if (dilutionMl > MAX_BATCH_ML) dilutionMl = MAX_BATCH_ML;
+      if (telemetry.isTankEmpty) {
+        console.warn(
+          "⚠️ Tank empty – skipping any water dosing (dilution/pH carrier).",
+        );
+        // You can still allow pH correction? No, because that requires water carrier.
+        // We'll just skip the entire tick to be safe.
+        this.isTicking = false;
+        return;
+      }
 
-      if (dilutionMl > 100) {
-        console.log(`\n🚀 --- INITIATING DILUTION BATCH ---`);
-
-        // Create batch record
-        const batch = await prisma.batchState.create({
-          data: {
-            active: true,
-            batchType: "DILUTION",
-            totalWaterMl: dilutionMl,
-            confirmedWaterMl: 0,
-            startedAt: new Date(),
-          },
-        });
-
-        try {
-          await this.executePumpAndWait(
-            "Fresh_Water",
+      // ---------- 1. EC Excess (Dilution) ----------
+      if (livePPM > targetPPM + deadbandPPM) {
+        const excessPPM = livePPM - targetPPM;
+        console.log(`📈 EC Excess +${excessPPM.toFixed(0)} PPM – diluting`);
+        const dilutionMl = Math.min(
+          sysVol * 1000 * (livePPM / targetPPM - 1),
+          MAX_BATCH_ML,
+        );
+        if (dilutionMl > 50) {
+          console.log(`🚀 Dilution batch: ${dilutionMl.toFixed(0)}ml water`);
+          const actualWater = await this.executePumpAndWait(
+            "Water",
             "dose_water",
             dilutionMl,
           );
-          await prisma.batchState.update({
-            where: { id: batch.id },
-            data: { confirmedWaterMl: dilutionMl },
-          });
-
-          const blowoutVolume = dilutionMl * 1.2;
-          console.log(
-            `🌊 Delivering ${dilutionMl.toFixed(1)}ml pure water (Blowout ${blowoutVolume.toFixed(1)}ml) to Pot A...`,
-          );
-
-          let remainingDeliver = blowoutVolume;
-          while (remainingDeliver > 0.5) {
-            await this.mqtt.waitForDevice("pump_node_1");
-            let startTime = Date.now();
-            try {
-              this.mqtt.sendCommand("deliver", remainingDeliver, "A");
-              await this.mqtt.waitForIdle();
-              remainingDeliver = 0;
-            } catch (err) {
-              if (err.message === "OFFLINE_INTERRUPT") {
-                let elapsedMs = Date.now() - startTime;
-                let pumpedMl = (elapsedMs / 1000) * 50.0; // Submersible flow rate
-                remainingDeliver -= pumpedMl;
-                if (remainingDeliver > 0.5)
-                  console.warn(
-                    `⚠️ Delivery interrupted. Remaining: ${remainingDeliver.toFixed(1)}ml. Waiting to resume...`,
-                  );
-              } else throw err;
-            }
+          if (actualWater > 0) {
+            await this._deliverToPot(actualWater * 1.2);
+            console.log(`✅ Dilution complete`);
+            this.isTicking = false;
+            return;
           }
+        }
+      }
+      // ---------- 2. EC Deficit (Nutrients) ----------
+      else if (livePPM < targetPPM - deadbandPPM) {
+        const deficitPPM = targetPPM - livePPM;
+        console.log(`📉 EC Deficit -${deficitPPM.toFixed(0)} PPM`);
 
-          await prisma.batchState.update({
-            where: { id: batch.id },
-            data: { active: false },
-          });
-          console.log(`✅ --- DILUTION SEQUENCE COMPLETE --- \n`);
+        const rawDose = this.calculateDeficit(
+          targetPPM,
+          deficitPPM,
+          stage,
+          currentDay,
+          sysVol,
+        );
+        const totalNeeded =
+          rawDose.cal +
+          rawDose.gro +
+          rawDose.micro +
+          rawDose.bloom +
+          rawDose.fin;
+        if (totalNeeded <= 1.0) {
+          console.log("Deficit too small, skipping");
+          this.isTicking = false;
           return;
-        } catch (err) {
-          await prisma.batchState.update({
-            where: { id: batch.id },
-            data: { active: false },
-          });
-          throw err;
         }
-      }
-    }
 
-    // ==========================================
-    // 3. pH CORRECTION (Only if EC is stable)
-    // ==========================================
-    if (livePH > TARGET_PH + 0.2 || livePH < TARGET_PH - 0.2) {
-      const type = livePH > TARGET_PH ? "pH_Down" : "pH_Up";
-      const topic = livePH > TARGET_PH ? "dose_ph_down" : "dose_ph_up";
-      console.log(`\n🚀 --- INITIATING ${type} CORRECTION ---`);
+        const MAX_NUT_PER_TICK = 15.0;
+        let nutrientScale = 1.0;
+        let batchScale = 1.0;
 
-      if (await Watchdog.isSafeToDose(type, 2.0)) {
-        await this.executePumpAndWait("Fresh_Water", "dose_water", 250.0);
-        const actualAcid = await this.executePumpAndWait(type, topic, 2.0);
+        const highestNut = Math.max(
+          rawDose.cal,
+          rawDose.micro,
+          rawDose.gro,
+          rawDose.bloom,
+          rawDose.fin,
+        );
+        if (highestNut > MAX_NUT_PER_TICK)
+          nutrientScale = MAX_NUT_PER_TICK / highestNut;
 
-        const totalVolume = 250.0 + actualAcid;
-        const blowoutVolume = totalVolume * 1.2;
+        const desiredCarrier = nutrientConfig.carrierVolumeMl;
+        const theoreticalNutVol =
+          (rawDose.cal +
+            rawDose.micro +
+            rawDose.gro +
+            rawDose.bloom +
+            rawDose.fin) *
+          nutrientScale;
+        const theoreticalTotal = desiredCarrier + theoreticalNutVol;
+        if (theoreticalTotal > MAX_BATCH_ML)
+          batchScale = MAX_BATCH_ML / theoreticalTotal;
 
-        // --- THE FIX: Add the Delivery Retry Loop ---
-        let remainingDeliver = blowoutVolume;
-        while (remainingDeliver > 0.5) {
-          await this.mqtt.waitForDevice("pump_node_1");
-          let startTime = Date.now();
-          try {
-            this.mqtt.sendCommand("deliver", remainingDeliver, "A");
-            await this.mqtt.waitForIdle();
-            remainingDeliver = 0;
-          } catch (err) {
-            if (err.message === "OFFLINE_INTERRUPT") {
-              let elapsedMs = Date.now() - startTime;
-              let pumpedMl = (elapsedMs / 1000) * 50.0;
-              remainingDeliver -= pumpedMl;
-              if (remainingDeliver > 0.5)
-                console.warn(
-                  `⚠️ Delivery interrupted. Remaining: ${remainingDeliver.toFixed(1)}ml. Waiting to resume...`,
-                );
-            } else throw err;
+        const finalCarrier = desiredCarrier * batchScale;
+        const finalNutScale = nutrientScale * batchScale;
+
+        const dose = {
+          cal: rawDose.cal * finalNutScale,
+          micro: rawDose.micro * finalNutScale,
+          gro: rawDose.gro * finalNutScale,
+          bloom: rawDose.bloom * finalNutScale,
+          fin: rawDose.fin * finalNutScale,
+        };
+
+        console.log(`🚀 Nutrient batch: carrier ${finalCarrier.toFixed(0)}ml`);
+        await this.executePumpAndWait(
+          nutrientConfig.carrierFluid,
+          "dose_water",
+          finalCarrier,
+        );
+
+        let totalInjected = 0;
+        const pumpMap = {
+          CalMag: { topic: "dose_calmag", amount: dose.cal },
+          Micro: { topic: "dose_micro", amount: dose.micro },
+          Gro: { topic: "dose_gro_fin_relay", amount: dose.gro },
+          Bloom: { topic: "dose_bloom", amount: dose.bloom },
+          Finisher: { topic: "dose_gro_fin_relay", amount: dose.fin },
+        };
+        for (const nut of nutrientConfig.mixingSequence) {
+          const p = pumpMap[nut];
+          if (p && p.amount > 0.5) {
+            totalInjected += await this.executePumpAndWait(
+              nut,
+              p.topic,
+              p.amount,
+            );
           }
         }
-        console.log(`✅ pH Correction Complete.`);
-      } else {
-        console.warn(`🚫 Aborting pH Correction: Watchdog blocked ${type}.`);
+
+        const totalVolume = finalCarrier + totalInjected;
+        await this._deliverToPot(totalVolume * 1.2);
+        console.log(`✅ Nutrient batch complete`);
+        this.isTicking = false;
+        return;
       }
-    } else {
-      console.log(`✅ System Stable.`);
+
+      // ---------- 3. pH Correction (proportional) ----------
+      const pHerror = livePH - TARGET_PH;
+      if (Math.abs(pHerror) > 0.2) {
+        const type = pHerror > 0 ? "pH_Down" : "pH_Up";
+        const topic = pHerror > 0 ? "dose_ph_down" : "dose_ph_up";
+        let doseMl = Math.min(5.0, Math.max(1.0, Math.abs(pHerror) * 5.0));
+        console.log(
+          `🚀 pH correction: ${type} ${doseMl.toFixed(1)}ml (error = ${pHerror.toFixed(2)})`,
+        );
+
+        if (await Watchdog.isSafeToDose(type, doseMl)) {
+          await this.executePumpAndWait("Water", "dose_water", 250.0);
+          const actualAcid = await this.executePumpAndWait(type, topic, doseMl);
+          const totalVol = 250 + actualAcid;
+          await this._deliverToPot(totalVol * 1.2);
+          console.log(`✅ pH correction complete`);
+        } else {
+          console.log(`⏭️ pH correction blocked by watchdog`);
+        }
+      } else {
+        console.log(`✅ System stable`);
+      }
+    } catch (err) {
+      console.error("❌ Recipe Engine Error:", err);
+      this.mqtt.sendCommand("stop", 0, "None", this.mqtt.nextSeq());
+    } finally {
+      this.isTicking = false;
     }
   }
 }

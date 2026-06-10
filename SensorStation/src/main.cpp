@@ -81,6 +81,7 @@ void setup() {
 }
 
 void loop() {
+  delay(10); // Short delay to prevent slow clockspeeds (wokwi documentation recommendation)
   // If connection drops, it reconnects and instantly fires telemetry again
   if (!client.connected()) reconnect();
   client.loop(); 

@@ -51,32 +51,34 @@ async function autoSeed() {
     });
   }
 
-  // 2. WatchdogConfigs for all known pumps
-  const requiredPumps = [
-    { name: "pH_Down", limit: 20.0 },
-    { name: "pH_Up", limit: 20.0 },
-    { name: "Micro", limit: 250.0 },
-    { name: "Bloom", limit: 250.0 },
-    { name: "CalMag", limit: 250.0 },
-    { name: "Gro", limit: 250.0 },
-    { name: "Finisher", limit: 250.0 },
-    { name: "Fresh_Water", limit: 20000.0 },
-  ];
+  if (process.env.NODE_ENV != "test") {
+    // 2. WatchdogConfigs for all known pumps
+    const requiredPumps = [
+      { name: "pH_Down", limit: 20.0 },
+      { name: "pH_Up", limit: 20.0 },
+      { name: "Micro", limit: 250.0 },
+      { name: "Bloom", limit: 250.0 },
+      { name: "CalMag", limit: 250.0 },
+      { name: "Gro", limit: 250.0 },
+      { name: "Finisher", limit: 250.0 },
+      { name: "Water", limit: 20000.0 },
+    ];
 
-  for (const pump of requiredPumps) {
-    let config = await prisma.watchdogConfig.findUnique({
-      where: { pumpName: pump.name },
-    });
-    if (!config) {
-      console.log(`🛡️ Creating Watchdog Config for ${pump.name}...`);
-      await prisma.watchdogConfig.create({
-        data: {
-          pumpName: pump.name,
-          dailyLimitMl: pump.limit,
-          cooldownSecs: systemConfig.watchdog.defaultCooldownSecs,
-          enabled: true,
-        },
+    for (const pump of requiredPumps) {
+      let config = await prisma.watchdogConfig.findUnique({
+        where: { pumpName: pump.name },
       });
+      if (!config) {
+        console.log(`🛡️ Creating Watchdog Config for ${pump.name}...`);
+        await prisma.watchdogConfig.create({
+          data: {
+            pumpName: pump.name,
+            dailyLimitMl: pump.limit,
+            cooldownSecs: systemConfig.watchdog.defaultCooldownSecs,
+            enabled: true,
+          },
+        });
+      }
     }
   }
 
@@ -204,12 +206,25 @@ io.on("connection", (socket) => {
 const hardwareComms = new MqttService(io);
 const engine = new RecipeEngine(hardwareComms);
 
+// ==========================================
+// TRIGGER FIRST TICK ON FIRST TELEMETRY
+// ==========================================
+let firstTelemetryReceived = false;
+hardwareComms.on("telemetry", () => {
+  if (!firstTelemetryReceived) {
+    firstTelemetryReceived = true;
+    console.log(
+      "📡 First telemetry received – triggering initial engine tick immediately.",
+    );
+    engine.executeTick().catch(console.error);
+  }
+});
+
 // ------------------ Cron Loop ------------------
 const TICK_INTERVAL_MS = 5 * 60 * 1000;
 
 async function runEngineLoop() {
   await engine.executeTick();
-  // Wait exactly 5 minutes AFTER the tick finishes before starting the next one
   setTimeout(runEngineLoop, TICK_INTERVAL_MS);
 }
 
@@ -224,31 +239,44 @@ app.get("/api/status", (req, res) => {
 // ------------------ Start Server ------------------
 const PORT = process.env.PORT || 3000;
 
-autoSeed()
-  .then(async () => {
-    // Clean up incomplete batches
-    const incompleteBatch = await prisma.batchState.findFirst({
-      where: { active: true },
-    });
-    if (incompleteBatch) {
-      console.warn(
-        "⚠️ Found incomplete batch from previous run. Sending emergency stop.",
-      );
-      hardwareComms.sendCommand("stop");
-      await prisma.batchState.update({
-        where: { id: incompleteBatch.id },
-        data: { active: false },
+if (require.main === module) {
+  autoSeed()
+    .then(async () => {
+      const incompleteBatch = await prisma.batchState.findFirst({
+        where: { active: true },
       });
-    }
-    server.listen(PORT, () => {
-      console.log(`\n🚀 Smart DWC Server running on port ${PORT}`);
-      console.log(
-        `⏱️  Autonomous Engine Tick set to ${TICK_INTERVAL_MS / 1000 / 60} minutes.`,
-      );
-      setTimeout(runEngineLoop, 5000);
+      if (incompleteBatch) {
+        console.warn(
+          "⚠️ Found incomplete batch from previous run. Sending emergency stop.",
+        );
+        hardwareComms.sendCommand("stop");
+        await prisma.batchState.update({
+          where: { id: incompleteBatch.id },
+          data: { active: false },
+        });
+      }
+      server.listen(PORT, () => {
+        console.log(`\n🚀 Smart DWC Server running on port ${PORT}`);
+        console.log(
+          `⏱️  Autonomous Engine Tick set to ${TICK_INTERVAL_MS / 1000 / 60} minutes.`,
+        );
+        setTimeout(runEngineLoop, 5000);
+      });
+    })
+    .catch((err) => {
+      console.error("❌ Failed to seed database on startup:", err);
+      process.exit(1);
     });
-  })
-  .catch((err) => {
-    console.error("❌ Failed to seed database on startup:", err);
-    process.exit(1);
-  });
+}
+
+if (process.env.NODE_ENV === "test") {
+  module.exports = {
+    app,
+    _autoSeed: autoSeed,
+    _runEngineLoop: runEngineLoop,
+    _hardwareComms: hardwareComms,
+    _engine: engine,
+  };
+} else {
+  module.exports = app;
+}

@@ -1,0 +1,113 @@
+const RecipeEngine = require("../../../../src/services/recipeEngine");
+const Watchdog = require("../../../../src/services/watchdog");
+const MockMqttService = require("../../../mocks/mockMqttService");
+const fs = require("fs").promises;
+
+jest.mock("../../../../src/services/watchdog", () => ({
+  isSafeToDose: jest.fn().mockResolvedValue(true),
+  logSuccessfulDose: jest.fn(),
+}));
+
+jest.spyOn(fs, "readFile").mockImplementation((path) => {
+  if (path.includes("hardware.json")) {
+    return Promise.resolve(
+      JSON.stringify({
+        peristaltic_ml_per_sec: 200.0,
+        submersible_ml_per_sec: 50.0,
+        safety_buffer_ms: 30000,
+      }),
+    );
+  }
+  return Promise.reject(new Error("unexpected path"));
+});
+
+describe("RecipeEngine.executePumpAndWait", () => {
+  let engine;
+  let mqtt;
+
+  beforeEach(() => {
+    mqtt = new MockMqttService();
+    engine = new RecipeEngine(mqtt);
+    jest.spyOn(engine, "waitForDoseComplete").mockImplementation(() =>
+      Promise.resolve({
+        type: "complete",
+        volume: mqtt.activeCommand?.ml || 0,
+      }),
+    );
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test("returns 0 if amount <= 0.5", async () => {
+    const result = await engine.executePumpAndWait("Water", "dose_water", 0.3);
+    expect(result).toBe(0);
+    expect(mqtt.sendCommand).not.toHaveBeenCalled();
+  });
+
+  test("caps non‑water at 15 ml", async () => {
+    const result = await engine.executePumpAndWait(
+      "CalMag",
+      "dose_calmag",
+      100,
+    );
+    expect(result).toBe(15);
+    expect(mqtt.sendCommand).toHaveBeenCalledWith(
+      "dose_calmag",
+      15,
+      "None",
+      expect.any(Number),
+    );
+  });
+
+  test("successful dose completes", async () => {
+    const result = await engine.executePumpAndWait("Water", "dose_water", 1000);
+    expect(result).toBe(1000);
+    expect(Watchdog.logSuccessfulDose).toHaveBeenCalledWith("Water", 1000);
+  });
+
+  test("retries on OFFLINE_INTERRUPT and resumes", async () => {
+    mqtt.waitForBusy.mockRejectedValueOnce(new Error("OFFLINE_INTERRUPT"));
+    mqtt.waitForBusy.mockResolvedValueOnce();
+    const result = await engine.executePumpAndWait("Water", "dose_water", 1000);
+    expect(result).toBe(1000);
+    expect(mqtt.waitForBusy).toHaveBeenCalledTimes(2);
+  });
+
+  test("throws error after MAX_RETRIES exceeded", async () => {
+    jest.spyOn(engine, "waitForDoseComplete").mockResolvedValue(null);
+    mqtt.waitForBusy.mockRejectedValue(new Error("OFFLINE_INTERRUPT"));
+    const promise = engine.executePumpAndWait("Water", "dose_water", 1000);
+    await expect(promise).rejects.toThrow(
+      "Failed to dose Water after 3 retries",
+    );
+  });
+
+  test("handles partial completion and sends second command", async () => {
+    mqtt.waitForBusy.mockResolvedValue();
+    jest
+      .spyOn(engine, "waitForDoseComplete")
+      .mockResolvedValue({ type: "complete", volume: 600 });
+    const result = await engine.executePumpAndWait("Water", "dose_water", 1000);
+    // Should have sent a second command for the remaining 400
+    expect(mqtt.sendCommand).toHaveBeenCalledTimes(2);
+    expect(mqtt.sendCommand).toHaveBeenNthCalledWith(
+      2,
+      "dose_water",
+      400,
+      "None",
+      2,
+    );
+    expect(result).toBe(1000);
+  });
+
+  test("loads hardware config on first use", async () => {
+    // Ensure the engine hasn't loaded config yet
+    expect(engine.peristalticFlowMlPerSec).toBeNull();
+    // Call a method that triggers _ensureHardwareConfig
+    await engine.executePumpAndWait("Water", "dose_water", 10);
+    expect(engine.peristalticFlowMlPerSec).toBe(200.0);
+    expect(engine.submersibleFlowMlPerSec).toBe(50.0);
+  });
+});
