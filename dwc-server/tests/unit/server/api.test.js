@@ -2,8 +2,9 @@ const request = require("supertest");
 const app = require("../../../src/server");
 const { PrismaClient } = require("@prisma/client");
 const CalibrationService = require("../../../src/services/calibrationService");
+const fs = require("fs").promises;
 
-// Mock PrismaClient completely
+// Mock PrismaClient
 jest.mock("@prisma/client", () => {
   const mockPrisma = {
     watchdogConfig: { findMany: jest.fn(), upsert: jest.fn() },
@@ -30,6 +31,14 @@ jest.mock("../../../src/services/mqttService", () => {
   }));
 });
 
+// Mock file system for nutrient config endpoints
+jest.mock("fs", () => ({
+  promises: {
+    readFile: jest.fn(),
+    writeFile: jest.fn(),
+  },
+}));
+
 describe("Server API Endpoints", () => {
   let prisma;
 
@@ -38,6 +47,7 @@ describe("Server API Endpoints", () => {
     jest.clearAllMocks();
   });
 
+  // ========== Status & Calibration ==========
   test("GET /api/status", async () => {
     const res = await request(app).get("/api/status");
     expect(res.statusCode).toBe(200);
@@ -61,28 +71,78 @@ describe("Server API Endpoints", () => {
     expect(CalibrationService.save).toHaveBeenCalled();
   });
 
+  // ========== Nutrient Configuration ==========
+  test("GET /api/nutrient-config returns profile", async () => {
+    const mockProfile = { carrierFluid: "Water", carrierVolumeMl: 500 };
+    fs.readFile.mockResolvedValue(JSON.stringify(mockProfile));
+    const res = await request(app).get("/api/nutrient-config");
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual(mockProfile);
+  });
+
+  test("GET /api/nutrient-config handles read error", async () => {
+    fs.readFile.mockRejectedValue(new Error("file missing"));
+    const res = await request(app).get("/api/nutrient-config");
+    expect(res.statusCode).toBe(500);
+    expect(res.body.error).toBe("Failed to load nutrient profile.");
+  });
+
+  test("POST /api/nutrient-config saves profile", async () => {
+    const newProfile = { carrierFluid: "RO", carrierVolumeMl: 1000 };
+    fs.writeFile.mockResolvedValue();
+    const res = await request(app)
+      .post("/api/nutrient-config")
+      .send(newProfile);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(fs.writeFile).toHaveBeenCalledWith(
+      expect.any(String),
+      JSON.stringify(newProfile, null, 2),
+    );
+  });
+
+  test("POST /api/nutrient-config handles write error", async () => {
+    fs.writeFile.mockRejectedValue(new Error("permission denied"));
+    const res = await request(app).post("/api/nutrient-config").send({});
+    expect(res.statusCode).toBe(500);
+    expect(res.body.error).toBe("Failed to save nutrient profile.");
+  });
+
+  // ========== Watchdog Configuration ==========
   test("GET /api/watchdog/config", async () => {
-    prisma.watchdogConfig.findMany.mockResolvedValue([{ pumpName: "pH_Down" }]);
+    prisma.watchdogConfig.findMany.mockResolvedValue([
+      { pumpName: "pH_Down", dailyLimitMl: 20 },
+    ]);
     const res = await request(app).get("/api/watchdog/config");
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual([{ pumpName: "pH_Down" }]);
+    expect(res.body).toEqual([{ pumpName: "pH_Down", dailyLimitMl: 20 }]);
   });
 
   test("POST /api/watchdog/config upserts", async () => {
     prisma.watchdogConfig.upsert.mockResolvedValue({
-      pumpName: "pH_Up",
-      dailyLimitMl: 20,
+      pumpName: "Micro",
+      dailyLimitMl: 30,
     });
     const res = await request(app).post("/api/watchdog/config").send({
-      pumpName: "pH_Up",
-      dailyLimitMl: 20,
-      cooldownSecs: 30,
+      pumpName: "Micro",
+      dailyLimitMl: 30,
+      cooldownSecs: 45,
       enabled: true,
     });
     expect(res.statusCode).toBe(200);
-    expect(prisma.watchdogConfig.upsert).toHaveBeenCalled();
+    expect(prisma.watchdogConfig.upsert).toHaveBeenCalledWith({
+      where: { pumpName: "Micro" },
+      update: { dailyLimitMl: 30, cooldownSecs: 45, enabled: true },
+      create: {
+        pumpName: "Micro",
+        dailyLimitMl: 30,
+        cooldownSecs: 45,
+        enabled: true,
+      },
+    });
   });
 
+  // ========== System State & Control ==========
   test("GET /api/system/state", async () => {
     prisma.systemState.findUnique.mockResolvedValue({ id: 1, currentDay: 50 });
     const res = await request(app).get("/api/system/state");
@@ -95,5 +155,16 @@ describe("Server API Endpoints", () => {
     const res = await request(app).post("/api/system/advance-day");
     expect(res.statusCode).toBe(200);
     expect(res.body.currentDay).toBe(51);
+  });
+
+  test("POST /api/system/override changes automation mode", async () => {
+    prisma.systemState.update.mockResolvedValue({
+      automationMode: "MANUAL_OVERRIDE",
+    });
+    const res = await request(app)
+      .post("/api/system/override")
+      .send({ mode: "MANUAL_OVERRIDE" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body.automationMode).toBe("MANUAL_OVERRIDE");
   });
 });

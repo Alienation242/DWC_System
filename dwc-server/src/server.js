@@ -51,32 +51,34 @@ async function autoSeed() {
     });
   }
 
-  // 2. WatchdogConfigs for all known pumps
-  const requiredPumps = [
-    { name: "pH_Down", limit: 20.0 },
-    { name: "pH_Up", limit: 20.0 },
-    { name: "Micro", limit: 250.0 },
-    { name: "Bloom", limit: 250.0 },
-    { name: "CalMag", limit: 250.0 },
-    { name: "Gro", limit: 250.0 },
-    { name: "Finisher", limit: 250.0 },
-    { name: "Water", limit: 20000.0 },
-  ];
+  if (process.env.NODE_ENV != "test") {
+    // 2. WatchdogConfigs for all known pumps
+    const requiredPumps = [
+      { name: "pH_Down", limit: 20.0 },
+      { name: "pH_Up", limit: 20.0 },
+      { name: "Micro", limit: 250.0 },
+      { name: "Bloom", limit: 250.0 },
+      { name: "CalMag", limit: 250.0 },
+      { name: "Gro", limit: 250.0 },
+      { name: "Finisher", limit: 250.0 },
+      { name: "Water", limit: 20000.0 },
+    ];
 
-  for (const pump of requiredPumps) {
-    let config = await prisma.watchdogConfig.findUnique({
-      where: { pumpName: pump.name },
-    });
-    if (!config) {
-      console.log(`🛡️ Creating Watchdog Config for ${pump.name}...`);
-      await prisma.watchdogConfig.create({
-        data: {
-          pumpName: pump.name,
-          dailyLimitMl: pump.limit,
-          cooldownSecs: systemConfig.watchdog.defaultCooldownSecs,
-          enabled: true,
-        },
+    for (const pump of requiredPumps) {
+      let config = await prisma.watchdogConfig.findUnique({
+        where: { pumpName: pump.name },
       });
+      if (!config) {
+        console.log(`🛡️ Creating Watchdog Config for ${pump.name}...`);
+        await prisma.watchdogConfig.create({
+          data: {
+            pumpName: pump.name,
+            dailyLimitMl: pump.limit,
+            cooldownSecs: systemConfig.watchdog.defaultCooldownSecs,
+            enabled: true,
+          },
+        });
+      }
     }
   }
 
@@ -265,6 +267,13 @@ if (require.main === module) {
       console.error("❌ Failed to seed database on startup:", err);
       process.exit(1);
     });
+}
+
+if (process.env.NODE_ENV === "test") {
+  module.exports._autoSeed = autoSeed;
+  module.exports._runEngineLoop = runEngineLoop;
+  module.exports._hardwareComms = hardwareComms;
+  module.exports._engine = engine;
 }
 
 module.exports = app;
