@@ -96,8 +96,6 @@ describe("RecipeEngine.executeTick", () => {
   });
 
   test("does nothing if EC within deadband", async () => {
-    // For day 50, target PPM ~428 → target EC = 856 µS/cm
-    // Set live EC to 850 (425 PPM) – deficit 3 PPM, within deadband 20
     await runTickWithTelemetry({
       realPH: 5.8,
       realEC: 850,
@@ -140,9 +138,6 @@ describe("RecipeEngine.executeTick", () => {
   });
 
   test("triggers pH correction when pH is off and EC is stable", async () => {
-    // Force EC to be within deadband by setting live EC very close to target
-    // Target EC ~856 µS/cm, set live EC = 856 (428 PPM)
-    // Now pH error 7.2 - 5.8 = 1.4 -> will trigger pH correction
     await runTickWithTelemetry({
       realPH: 7.2,
       realEC: 856,

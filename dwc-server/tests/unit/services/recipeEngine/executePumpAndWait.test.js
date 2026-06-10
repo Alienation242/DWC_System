@@ -63,4 +63,15 @@ describe("RecipeEngine.executePumpAndWait", () => {
     expect(result).toBe(1000);
     expect(mqtt.waitForBusy).toHaveBeenCalledTimes(2);
   });
+
+  test("throws error after MAX_RETRIES exceeded", async () => {
+    // Mock the offline recovery to never resolve completion or busy
+    jest.spyOn(engine, "waitForDoseComplete").mockResolvedValue(null);
+    mqtt.waitForBusy.mockRejectedValue(new Error("OFFLINE_INTERRUPT"));
+    // Prevent any completion from being emitted by the mock MQTT
+    const promise = engine.executePumpAndWait("Water", "dose_water", 1000);
+    await expect(promise).rejects.toThrow(
+      "Failed to dose Water after 3 retries",
+    );
+  });
 });

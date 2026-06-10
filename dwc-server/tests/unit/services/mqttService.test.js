@@ -144,4 +144,118 @@ describe("MqttService", () => {
     // The captured mock instance is now accessible
     expect(mockSharedPrisma.telemetryLog.create).toHaveBeenCalled();
   });
+
+  test("emits network_change when connection topic received", (done) => {
+    const deviceName = "pump_node_1";
+    const status = "online";
+    const topic = `kevin/dwc/${deviceName}/connection`;
+    const message = { toString: () => status };
+    service.on("network_change", (dev, stat) => {
+      expect(dev).toBe(deviceName);
+      expect(stat).toBe(status);
+      done();
+    });
+    const messageHandler = mockClient.on.mock.calls.find(
+      (c) => c[0] === "message",
+    )[1];
+    messageHandler(topic, message);
+  });
+
+  test("waitForIdle rejects with OFFLINE_INTERRUPT if device goes offline", async () => {
+    service.hardwareStatus = "busy";
+    service.deviceRegistry["pump_node_1"] = "offline";
+    await expect(service.waitForIdle(100)).rejects.toThrow("OFFLINE_INTERRUPT");
+  });
+
+  test("waitForBusy resolves immediately if already busy with correct seq", async () => {
+    service.hardwareStatus = "busy";
+    service.hardwareTask = "dosing";
+    service.hardwareSeq = 5;
+    await expect(service.waitForBusy(100, 5)).resolves.toBeUndefined();
+  });
+
+  test("waitForBusy waits if expectedSeq mismatches", async () => {
+    service.hardwareStatus = "busy";
+    service.hardwareTask = "resumed_dosing";
+    service.hardwareSeq = 5;
+    const promise = service.waitForBusy(100, 10);
+    process.nextTick(() => {
+      service.emit("hardware_status", {
+        status: "busy",
+        task: "resumed_dosing",
+        seq: 10,
+      });
+    });
+    await expect(promise).resolves.toBeUndefined();
+  });
+
+  test("handleTelemetry logs error on invalid JSON", () => {
+    const message = { toString: () => "{invalid json}" };
+    const consoleErrorSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    service.handleTelemetry(message);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "❌ Failed to process telemetry:",
+      expect.any(String),
+    );
+    consoleErrorSpy.mockRestore();
+  });
+
+  test("emits network_change when connection topic received", (done) => {
+    const deviceName = "pump_node_1";
+    const status = "online";
+    const topic = `kevin/dwc/${deviceName}/connection`;
+    const message = { toString: () => status };
+    service.on("network_change", (dev, stat) => {
+      expect(dev).toBe(deviceName);
+      expect(stat).toBe(status);
+      done();
+    });
+    const messageHandler = mockClient.on.mock.calls.find(
+      (c) => c[0] === "message",
+    )[1];
+    messageHandler(topic, message);
+  });
+
+  test("waitForIdle rejects with OFFLINE_INTERRUPT if device goes offline", async () => {
+    service.hardwareStatus = "busy";
+    service.deviceRegistry["pump_node_1"] = "offline";
+    await expect(service.waitForIdle(100)).rejects.toThrow("OFFLINE_INTERRUPT");
+  });
+
+  test("waitForBusy resolves immediately if already busy with correct seq", async () => {
+    service.hardwareStatus = "busy";
+    service.hardwareTask = "dosing";
+    service.hardwareSeq = 5;
+    await expect(service.waitForBusy(100, 5)).resolves.toBeUndefined();
+  });
+
+  test("waitForBusy waits if expectedSeq mismatches", async () => {
+    service.hardwareStatus = "busy";
+    service.hardwareTask = "resumed_dosing";
+    service.hardwareSeq = 5;
+    const promise = service.waitForBusy(100, 10);
+    process.nextTick(() => {
+      service.emit("hardware_status", {
+        status: "busy",
+        task: "resumed_dosing",
+        seq: 10,
+      });
+    });
+    await expect(promise).resolves.toBeUndefined();
+  });
+
+  test("handleTelemetry logs error on invalid JSON", () => {
+    const message = { toString: () => "{invalid json}" };
+    const consoleErrorSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    service.handleTelemetry(message);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "❌ Failed to process telemetry:",
+      expect.any(String),
+    );
+    consoleErrorSpy.mockRestore();
+  });
 });
