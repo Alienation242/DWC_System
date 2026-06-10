@@ -367,7 +367,7 @@ class RecipeEngine {
     });
   }
 
-  // ---------- Main tick (refactored, uses batch scaling from nutrient_profile) ----------
+  // ---------- Main tick ----------
   async executeTick() {
     if (this.isTicking) return;
     this.isTicking = true;
@@ -387,20 +387,27 @@ class RecipeEngine {
       const systemState = await prisma.systemState.findFirst();
       if (!systemState) throw new Error("SystemState missing");
 
-      const rawProfile = await fs.readFile(NUTRIENT_PROFILE_PATH, "utf8");
-      const activeProfile = JSON.parse(rawProfile);
-      const sysConfig = JSON.parse(
-        await fs
-          .readFile(SYSTEM_CONFIG_PATH, "utf8")
-          .catch(() => '{"mixing":{"maxMixingTankVolumeMl":5000}}'),
-      );
-      const MAX_BATCH_ML = sysConfig.mixing?.maxMixingTankVolumeMl || 5000;
+      // --- Load all configuration files once ---
+      const strainProfilePath =
+        systemState.currentProfilePath ||
+        path.join(process.cwd(), "src/recipes/default.json");
+      const rawStrain = await fs.readFile(strainProfilePath, "utf8");
+      const strainProfile = JSON.parse(rawStrain);
+
+      const rawNutrient = await fs.readFile(NUTRIENT_PROFILE_PATH, "utf8");
+      const nutrientConfig = JSON.parse(rawNutrient);
+
+      const rawSystem = await fs
+        .readFile(SYSTEM_CONFIG_PATH, "utf8")
+        .catch(() => '{"mixing":{"maxMixingTankVolumeMl":5000}}');
+      const systemConfig = JSON.parse(rawSystem);
+      const MAX_BATCH_ML = systemConfig.mixing?.maxMixingTankVolumeMl || 5000;
 
       const currentDay = systemState.currentDay || 1;
-      const sysVol = systemState.sysVol || 18.0; // unified field
+      const sysVol = systemState.sysVol || 18.0;
 
       const dynamicData = this.getDynamicTarget(
-        activeProfile,
+        strainProfile,
         currentDay,
         null,
       );
@@ -467,16 +474,6 @@ class RecipeEngine {
           return;
         }
 
-        // Load nutrient profile for batch scaling
-        const nutConfig = JSON.parse(
-          await fs
-            .readFile(NUTRIENT_PROFILE_PATH, "utf8")
-            .catch(
-              () =>
-                '{"carrierFluid":"Water","carrierVolumeMl":500,"mixingSequence":[]}',
-            ),
-        );
-
         const MAX_NUT_PER_TICK = 15.0;
         let nutrientScale = 1.0;
         let batchScale = 1.0;
@@ -491,7 +488,7 @@ class RecipeEngine {
         if (highestNut > MAX_NUT_PER_TICK)
           nutrientScale = MAX_NUT_PER_TICK / highestNut;
 
-        const desiredCarrier = nutConfig.carrierVolumeMl;
+        const desiredCarrier = nutrientConfig.carrierVolumeMl;
         const theoreticalNutVol =
           (rawDose.cal +
             rawDose.micro +
@@ -516,7 +513,7 @@ class RecipeEngine {
 
         console.log(`🚀 Nutrient batch: carrier ${finalCarrier.toFixed(0)}ml`);
         await this.executePumpAndWait(
-          nutConfig.carrierFluid,
+          nutrientConfig.carrierFluid,
           "dose_water",
           finalCarrier,
         );
@@ -529,7 +526,7 @@ class RecipeEngine {
           Bloom: { topic: "dose_bloom", amount: dose.bloom },
           Finisher: { topic: "dose_gro_fin_relay", amount: dose.fin },
         };
-        for (const nut of nutConfig.mixingSequence) {
+        for (const nut of nutrientConfig.mixingSequence) {
           const p = pumpMap[nut];
           if (p && p.amount > 0.5) {
             totalInjected += await this.executePumpAndWait(
@@ -552,7 +549,6 @@ class RecipeEngine {
       if (Math.abs(pHerror) > 0.2) {
         const type = pHerror > 0 ? "pH_Down" : "pH_Up";
         const topic = pHerror > 0 ? "dose_ph_down" : "dose_ph_up";
-        // Proportional dose: 0.5 ml per 0.1 pH error, min 1 ml, max 5 ml
         let doseMl = Math.min(5.0, Math.max(1.0, Math.abs(pHerror) * 5.0));
         console.log(
           `🚀 pH correction: ${type} ${doseMl.toFixed(1)}ml (error = ${pHerror.toFixed(2)})`,

@@ -1,34 +1,14 @@
+require("../../../mocks/mockPrisma");
+const mockPrisma = require("../../../mocks/mockPrisma");
 const RecipeEngine = require("../../../../src/services/recipeEngine");
 const MockMqttService = require("../../../mocks/mockMqttService");
-
-// Mock fs using jest.spyOn
 const fs = require("fs").promises;
 jest.spyOn(fs, "readFile");
 jest.spyOn(fs, "writeFile");
 
-// Mock watchdog
 jest.mock("../../../../src/services/watchdog", () => ({
   isSafeToDose: jest.fn().mockResolvedValue(true),
   logSuccessfulDose: jest.fn(),
-}));
-
-// Create mockPrisma and mock @prisma/client in a way that avoids hoisting issues
-const mockPrisma = {
-  telemetryLog: { findFirst: jest.fn(), create: jest.fn() },
-  systemState: { findFirst: jest.fn(), update: jest.fn() },
-  batchState: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
-  watchdogConfig: {
-    findUnique: jest.fn(),
-    create: jest.fn(),
-    upsert: jest.fn(),
-    findMany: jest.fn(),
-  },
-  doseLog: { findFirst: jest.fn(), aggregate: jest.fn(), create: jest.fn() },
-  $disconnect: jest.fn(),
-};
-
-jest.mock("@prisma/client", () => ({
-  PrismaClient: jest.fn(() => mockPrisma),
 }));
 
 describe("RecipeEngine.executeTick", () => {
@@ -37,13 +17,21 @@ describe("RecipeEngine.executeTick", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Reset mock implementations to their default values
+    mockPrisma.telemetryLog.findFirst.mockReset();
+    mockPrisma.systemState.findFirst.mockReset();
+    mockPrisma.batchState.create.mockReset();
+    mockPrisma.batchState.update.mockReset();
+
     mqtt = new MockMqttService();
     engine = new RecipeEngine(mqtt);
-    // Stub executePumpAndWait and _deliverToPot
+
+    // Stub expensive methods
     engine.executePumpAndWait = jest.fn().mockResolvedValue(100);
     engine._deliverToPot = jest.fn().mockResolvedValue();
 
-    // Default strain profile (Standard Hybrid) – day 50 gives target ~400 PPM
+    // Default strain profile (Standard Hybrid)
     const defaultProfile = {
       name: "Standard Hybrid",
       flipWeek: 9,
@@ -73,6 +61,7 @@ describe("RecipeEngine.executeTick", () => {
         },
       },
     };
+
     fs.readFile.mockImplementation((path) => {
       if (path.includes("nutrient_profile.json")) {
         return Promise.resolve(
@@ -101,7 +90,6 @@ describe("RecipeEngine.executeTick", () => {
     });
   });
 
-  // Helper to set telemetry and then run the tick
   const runTickWithTelemetry = async (telemetry) => {
     mockPrisma.telemetryLog.findFirst.mockResolvedValue(telemetry);
     await engine.executeTick();
@@ -115,7 +103,7 @@ describe("RecipeEngine.executeTick", () => {
   test("does nothing if EC within deadband", async () => {
     await runTickWithTelemetry({
       realPH: 5.8,
-      realEC: 800, // 400 PPM, target ~428 PPM → within deadband (difference <20)
+      realEC: 800,
       timestamp: new Date(),
     });
     expect(engine.executePumpAndWait).not.toHaveBeenCalled();
@@ -124,7 +112,7 @@ describe("RecipeEngine.executeTick", () => {
   test("triggers dilution when EC too high", async () => {
     await runTickWithTelemetry({
       realPH: 5.8,
-      realEC: 1200, // 600 PPM
+      realEC: 1200,
       timestamp: new Date(),
     });
     expect(engine.executePumpAndWait).toHaveBeenCalledWith(
@@ -138,7 +126,7 @@ describe("RecipeEngine.executeTick", () => {
   test("triggers nutrient dosing when EC too low", async () => {
     await runTickWithTelemetry({
       realPH: 5.8,
-      realEC: 400, // 200 PPM
+      realEC: 400,
       timestamp: new Date(),
     });
     expect(engine.executePumpAndWait).toHaveBeenCalledWith(
