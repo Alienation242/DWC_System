@@ -277,7 +277,7 @@ class RecipeEngine {
         const result = await Promise.race([
           this.waitForDoseComplete(
             seq,
-            2 * (remainingMl / flowRate) * 1000 + 10000,
+            2 * (remainingMl / flowRate) * 1000 + 30000,
           ),
           this.mqtt.waitForIdle().then(() => ({ type: "idle" })),
         ]);
@@ -426,6 +426,24 @@ class RecipeEngine {
       );
 
       const deadbandPPM = 20;
+
+      if (telemetry.isTankOverflowing) {
+        console.error(
+          "💥 CRITICAL: Tank overflow detected! Stopping all pumps and aborting tick.",
+        );
+        await this.mqtt.sendCommand("stop", 0, "None", this.mqtt.nextSeq());
+        this.isTicking = false;
+        return;
+      }
+      if (telemetry.isTankEmpty) {
+        console.warn(
+          "⚠️ Tank empty – skipping any water dosing (dilution/pH carrier).",
+        );
+        // You can still allow pH correction? No, because that requires water carrier.
+        // We'll just skip the entire tick to be safe.
+        this.isTicking = false;
+        return;
+      }
 
       // ---------- 1. EC Excess (Dilution) ----------
       if (livePPM > targetPPM + deadbandPPM) {

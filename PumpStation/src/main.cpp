@@ -36,7 +36,7 @@ const char* TOPIC_STATUS     = "kevin/dwc/pump_node_1/status";
 const char* TOPIC_CONNECTION = "kevin/dwc/pump_node_1/connection"; 
 
 unsigned long wifiDisconnectTime = 0;
-const unsigned long WIFI_GRACE_PERIOD_MS = 8000; // 8 seconds of forgiveness
+const unsigned long WIFI_GRACE_PERIOD_MS = 30000; // 30 seconds of forgiveness
 
 WiFiClient espClient;
 PubSubClient client(espClient);
