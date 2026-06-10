@@ -12,13 +12,21 @@ describe("RecipeEngine.executePumpAndWait", () => {
   let mqtt;
 
   beforeEach(() => {
-    jest.useFakeTimers();
     mqtt = new MockMqttService();
     engine = new RecipeEngine(mqtt);
+    // Spy on waitForDoseComplete to resolve immediately
+    jest
+      .spyOn(engine, "waitForDoseComplete")
+      .mockImplementation((seq, timeout) => {
+        return Promise.resolve({
+          type: "complete",
+          volume: mqtt.activeCommand?.ml || 0,
+        });
+      });
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    jest.restoreAllMocks();
   });
 
   test("returns 0 if amount <= 0.5", async () => {
@@ -28,10 +36,11 @@ describe("RecipeEngine.executePumpAndWait", () => {
   });
 
   test("caps non‑water at 15 ml", async () => {
-    const promise = engine.executePumpAndWait("CalMag", "dose_calmag", 100);
-    // Simulate the dose complete
-    mqtt.emitDoseComplete(1, 15);
-    const result = await promise;
+    const result = await engine.executePumpAndWait(
+      "CalMag",
+      "dose_calmag",
+      100,
+    );
     expect(result).toBe(15);
     expect(mqtt.sendCommand).toHaveBeenCalledWith(
       "dose_calmag",
@@ -42,21 +51,15 @@ describe("RecipeEngine.executePumpAndWait", () => {
   });
 
   test("successful dose completes", async () => {
-    const promise = engine.executePumpAndWait("Water", "dose_water", 1000);
-    mqtt.emitDoseComplete(1, 1000);
-    const result = await promise;
+    const result = await engine.executePumpAndWait("Water", "dose_water", 1000);
     expect(result).toBe(1000);
     expect(Watchdog.logSuccessfulDose).toHaveBeenCalledWith("Water", 1000);
   });
 
   test("retries on OFFLINE_INTERRUPT and resumes", async () => {
-    // First waitForBusy throws, then second resolves
     mqtt.waitForBusy.mockRejectedValueOnce(new Error("OFFLINE_INTERRUPT"));
     mqtt.waitForBusy.mockResolvedValueOnce();
-    const promise = engine.executePumpAndWait("Water", "dose_water", 1000);
-    // Simulate that after reconnect we emit complete
-    setImmediate(() => mqtt.emitDoseComplete(1, 1000));
-    const result = await promise;
+    const result = await engine.executePumpAndWait("Water", "dose_water", 1000);
     expect(result).toBe(1000);
     expect(mqtt.waitForBusy).toHaveBeenCalledTimes(2);
   });

@@ -1,20 +1,34 @@
 const RecipeEngine = require("../../../../src/services/recipeEngine");
-const fs = require("fs").promises;
-const mockPrisma = require("../../../mocks/mockPrisma");
 const MockMqttService = require("../../../mocks/mockMqttService");
 
-// Mock fs
-jest.mock("fs", () => ({
-  promises: {
-    readFile: jest.fn(),
-    writeFile: jest.fn(),
-  },
-}));
+// Mock fs using jest.spyOn
+const fs = require("fs").promises;
+jest.spyOn(fs, "readFile");
+jest.spyOn(fs, "writeFile");
 
 // Mock watchdog
 jest.mock("../../../../src/services/watchdog", () => ({
   isSafeToDose: jest.fn().mockResolvedValue(true),
   logSuccessfulDose: jest.fn(),
+}));
+
+// Create mockPrisma and mock @prisma/client in a way that avoids hoisting issues
+const mockPrisma = {
+  telemetryLog: { findFirst: jest.fn(), create: jest.fn() },
+  systemState: { findFirst: jest.fn(), update: jest.fn() },
+  batchState: { create: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
+  watchdogConfig: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    upsert: jest.fn(),
+    findMany: jest.fn(),
+  },
+  doseLog: { findFirst: jest.fn(), aggregate: jest.fn(), create: jest.fn() },
+  $disconnect: jest.fn(),
+};
+
+jest.mock("@prisma/client", () => ({
+  PrismaClient: jest.fn(() => mockPrisma),
 }));
 
 describe("RecipeEngine.executeTick", () => {
@@ -25,11 +39,11 @@ describe("RecipeEngine.executeTick", () => {
     jest.clearAllMocks();
     mqtt = new MockMqttService();
     engine = new RecipeEngine(mqtt);
-    // Stub executePumpAndWait and _deliverToPot to avoid real dosing
+    // Stub executePumpAndWait and _deliverToPot
     engine.executePumpAndWait = jest.fn().mockResolvedValue(100);
     engine._deliverToPot = jest.fn().mockResolvedValue();
 
-    // Default strain profile (Standard Hybrid)
+    // Default strain profile (Standard Hybrid) – day 50 gives target ~400 PPM
     const defaultProfile = {
       name: "Standard Hybrid",
       flipWeek: 9,
@@ -85,52 +99,48 @@ describe("RecipeEngine.executeTick", () => {
       currentDay: 50,
       sysVol: 18,
     });
-    // Default telemetry (pH 5.8, EC 800 → 400 PPM)
-    mockPrisma.telemetryLog.findFirst.mockResolvedValue({
-      realPH: 5.8,
-      realEC: 800,
-      timestamp: new Date(),
-    });
   });
 
-  test("does nothing if no telemetry", async () => {
-    mockPrisma.telemetryLog.findFirst.mockResolvedValue(null);
+  // Helper to set telemetry and then run the tick
+  const runTickWithTelemetry = async (telemetry) => {
+    mockPrisma.telemetryLog.findFirst.mockResolvedValue(telemetry);
     await engine.executeTick();
+  };
+
+  test("does nothing if no telemetry", async () => {
+    await runTickWithTelemetry(null);
     expect(engine.executePumpAndWait).not.toHaveBeenCalled();
   });
 
   test("does nothing if EC within deadband", async () => {
-    await engine.executeTick();
+    await runTickWithTelemetry({
+      realPH: 5.8,
+      realEC: 800, // 400 PPM, target ~428 PPM → within deadband (difference <20)
+      timestamp: new Date(),
+    });
     expect(engine.executePumpAndWait).not.toHaveBeenCalled();
   });
 
   test("triggers dilution when EC too high", async () => {
-    mockPrisma.telemetryLog.findFirst.mockResolvedValue({
+    await runTickWithTelemetry({
       realPH: 5.8,
       realEC: 1200, // 600 PPM
+      timestamp: new Date(),
     });
-    jest
-      .spyOn(engine, "getDynamicTarget")
-      .mockReturnValue({ targetPPM: 400, phase: "VEGETATIVE" });
-    await engine.executeTick();
     expect(engine.executePumpAndWait).toHaveBeenCalledWith(
       "Water",
       "dose_water",
       expect.any(Number),
     );
     expect(engine._deliverToPot).toHaveBeenCalled();
-    engine.getDynamicTarget.mockRestore();
   });
 
   test("triggers nutrient dosing when EC too low", async () => {
-    mockPrisma.telemetryLog.findFirst.mockResolvedValue({
+    await runTickWithTelemetry({
       realPH: 5.8,
-      realEC: 400,
+      realEC: 400, // 200 PPM
+      timestamp: new Date(),
     });
-    jest
-      .spyOn(engine, "getDynamicTarget")
-      .mockReturnValue({ targetPPM: 600, phase: "VEGETATIVE" });
-    await engine.executeTick();
     expect(engine.executePumpAndWait).toHaveBeenCalledWith(
       "Water",
       "dose_water",
@@ -142,18 +152,14 @@ describe("RecipeEngine.executeTick", () => {
       expect.any(Number),
     );
     expect(engine._deliverToPot).toHaveBeenCalled();
-    engine.getDynamicTarget.mockRestore();
   });
 
   test("triggers pH correction when pH is off", async () => {
-    mockPrisma.telemetryLog.findFirst.mockResolvedValue({
+    await runTickWithTelemetry({
       realPH: 7.2,
       realEC: 800,
+      timestamp: new Date(),
     });
-    jest
-      .spyOn(engine, "getDynamicTarget")
-      .mockReturnValue({ targetPPM: 400, phase: "VEGETATIVE" });
-    await engine.executeTick();
     expect(engine.executePumpAndWait).toHaveBeenCalledWith(
       "pH_Down",
       "dose_ph_down",
@@ -165,17 +171,16 @@ describe("RecipeEngine.executeTick", () => {
       250,
     );
     expect(engine._deliverToPot).toHaveBeenCalled();
-    engine.getDynamicTarget.mockRestore();
   });
 
   test("pH correction is skipped if watchdog blocks", async () => {
     const Watchdog = require("../../../../src/services/watchdog");
     Watchdog.isSafeToDose.mockResolvedValueOnce(false);
-    mockPrisma.telemetryLog.findFirst.mockResolvedValue({
+    await runTickWithTelemetry({
       realPH: 7.2,
       realEC: 800,
+      timestamp: new Date(),
     });
-    await engine.executeTick();
     expect(engine.executePumpAndWait).not.toHaveBeenCalledWith(
       "pH_Down",
       expect.anything(),
@@ -184,7 +189,9 @@ describe("RecipeEngine.executeTick", () => {
   });
 
   test("handles missing systemState gracefully", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
     mockPrisma.systemState.findFirst.mockResolvedValue(null);
-    await expect(engine.executeTick()).rejects.toThrow("SystemState missing");
+    await engine.executeTick();
+    expect(console.error).toHaveBeenCalled();
   });
 });

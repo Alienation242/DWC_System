@@ -14,16 +14,14 @@ class MockMqttService extends EventEmitter {
         this.activeCommand = { action, ml, target, seq };
         return seq || ++this.seqCounter;
       });
+    this.nextSeq = jest.fn().mockImplementation(() => ++this.seqCounter);
+    // These methods just resolve immediately for tests
     this.waitForDevice = jest.fn().mockResolvedValue();
     this.waitForIdle = jest.fn().mockResolvedValue();
     this.waitForBusy = jest.fn().mockResolvedValue();
-    this.nextSeq = jest.fn().mockImplementation(() => ++this.seqCounter);
-    this.on = jest.fn();
-    this.emit = jest.fn();
-    this.removeListener = jest.fn();
+    // DO NOT mock .on, .emit, .removeListener – they come from EventEmitter
   }
 
-  // Helper to simulate a dose completion
   emitDoseComplete(seq, volume) {
     this.emit("pump_message", {
       seq,
