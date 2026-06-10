@@ -1,5 +1,5 @@
 const request = require("supertest");
-const app = require("../../../src/server");
+const { app } = require("../../../src/server");
 const CalibrationService = require("../../../src/services/calibrationService");
 const fs = require("fs").promises;
 const { mockPrisma } = global;

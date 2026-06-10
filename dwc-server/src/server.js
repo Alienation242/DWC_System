@@ -270,9 +270,13 @@ if (require.main === module) {
 }
 
 if (process.env.NODE_ENV === "test") {
-  module.exports._autoSeed = autoSeed;
-  module.exports._runEngineLoop = runEngineLoop;
-  module.exports._hardwareComms = hardwareComms;
-  module.exports._engine = engine;
+  module.exports = {
+    app,
+    _autoSeed: autoSeed,
+    _runEngineLoop: runEngineLoop,
+    _hardwareComms: hardwareComms,
+    _engine: engine,
+  };
+} else {
+  module.exports = app;
 }
-module.exports = app;
