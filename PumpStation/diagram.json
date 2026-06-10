@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "author": "Industrial DWC – Clean DC-SSR Layout (staircase signals, bus-style GND)",
+  "author": "Industrial DWC – Pulldown Filtered SSR Layout",
   "editor": "wokwi",
   "parts": [
     {
@@ -114,6 +114,76 @@
       "top": 900,
       "left": 0,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "pd_1",
+      "top": 30,
+      "left": -100,
+      "attrs": { "value": "10000" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "pd_2",
+      "top": 130,
+      "left": -100,
+      "attrs": { "value": "10000" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "pd_3",
+      "top": 230,
+      "left": -100,
+      "attrs": { "value": "10000" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "pd_4",
+      "top": 330,
+      "left": -100,
+      "attrs": { "value": "10000" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "pd_5",
+      "top": 430,
+      "left": -100,
+      "attrs": { "value": "10000" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "pd_6",
+      "top": 530,
+      "left": -100,
+      "attrs": { "value": "10000" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "pd_7",
+      "top": 630,
+      "left": -100,
+      "attrs": { "value": "10000" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "pd_8",
+      "top": 730,
+      "left": -100,
+      "attrs": { "value": "10000" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "pd_9",
+      "top": 830,
+      "left": -100,
+      "attrs": { "value": "10000" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "pd_10",
+      "top": 930,
+      "left": -100,
+      "attrs": { "value": "10000" }
     },
     {
       "type": "wokwi-led",
@@ -329,70 +399,70 @@
       "type": "wokwi-text",
       "id": "lbl_gpio1",
       "top": 10,
-      "left": -60,
-      "attrs": { "text": "GPIO13" }
+      "left": -70,
+      "attrs": { "text": "GPIO32" }
     },
     {
       "type": "wokwi-text",
       "id": "lbl_gpio2",
       "top": 110,
-      "left": -60,
-      "attrs": { "text": "GPIO14" }
+      "left": -70,
+      "attrs": { "text": "GPIO33" }
     },
     {
       "type": "wokwi-text",
       "id": "lbl_gpio3",
       "top": 210,
-      "left": -60,
-      "attrs": { "text": "GPIO15" }
+      "left": -70,
+      "attrs": { "text": "GPIO25" }
     },
     {
       "type": "wokwi-text",
       "id": "lbl_gpio4",
       "top": 310,
-      "left": -60,
-      "attrs": { "text": "GPIO16" }
+      "left": -70,
+      "attrs": { "text": "GPIO26" }
     },
     {
       "type": "wokwi-text",
       "id": "lbl_gpio5",
       "top": 410,
-      "left": -60,
-      "attrs": { "text": "GPIO17" }
+      "left": -70,
+      "attrs": { "text": "GPIO27" }
     },
     {
       "type": "wokwi-text",
       "id": "lbl_gpio6",
       "top": 510,
-      "left": -60,
-      "attrs": { "text": "GPIO25" }
+      "left": -70,
+      "attrs": { "text": "GPIO16" }
     },
     {
       "type": "wokwi-text",
       "id": "lbl_gpio7",
       "top": 610,
-      "left": -60,
-      "attrs": { "text": "GPIO26" }
+      "left": -70,
+      "attrs": { "text": "GPIO17" }
     },
     {
       "type": "wokwi-text",
       "id": "lbl_gpio8",
       "top": 710,
-      "left": -60,
+      "left": -70,
       "attrs": { "text": "GPIO18" }
     },
     {
       "type": "wokwi-text",
       "id": "lbl_gpio9",
       "top": 810,
-      "left": -60,
+      "left": -70,
       "attrs": { "text": "GPIO19" }
     },
     {
       "type": "wokwi-text",
       "id": "lbl_gpio10",
       "top": 910,
-      "left": -60,
+      "left": -70,
       "attrs": { "text": "GPIO21" }
     }
   ],
@@ -428,16 +498,37 @@
     ["ssr8:GND", "ssr9:GND", "black", ["h-30", "v100"]],
     ["ssr9:GND", "ssr10:GND", "black", ["h-30", "v100"]],
 
-    ["esp:13", "ssr1:IN", "green", ["h-20", "v-400"]],
-    ["esp:14", "ssr2:IN", "green", ["h-30", "v-320"]],
-    ["esp:15", "ssr3:IN", "green", ["h20", "v-300"]],
-    ["esp:16", "ssr4:IN", "green", ["h30", "v-150"]],
-    ["esp:17", "ssr5:IN", "green", ["h40", "v-40"]],
-    ["esp:25", "ssr6:IN", "green", ["h-40", "v110"]],
-    ["esp:26", "ssr7:IN", "green", ["h-50", "v200"]],
-    ["esp:18", "ssr8:IN", "green", ["h50", "v280"]],
-    ["esp:19", "ssr9:IN", "green", ["h60", "v420"]],
-    ["esp:21", "ssr10:IN", "green", ["h70", "v510"]],
+    ["esp:32", "ssr1:IN", "green", ["h-20", "v-400", "h400"]],
+    ["esp:33", "ssr2:IN", "green", ["h-30", "v-320", "h400"]],
+    ["esp:25", "ssr3:IN", "green", ["h-40", "v-240", "h400"]],
+    ["esp:26", "ssr4:IN", "green", ["h-50", "v-160", "h400"]],
+    ["esp:27", "ssr5:IN", "green", ["h-60", "v-80", "h400"]],
+    ["esp:16", "ssr6:IN", "green", ["h40", "v-30"]],
+    ["esp:17", "ssr7:IN", "green", ["h50", "v30"]],
+    ["esp:18", "ssr8:IN", "green", ["h60", "v110"]],
+    ["esp:19", "ssr9:IN", "green", ["h70", "v190"]],
+    ["esp:21", "ssr10:IN", "green", ["h80", "v270"]],
+
+    ["pd_1:1", "ssr1:IN", "green", []],
+    ["pd_1:2", "ssr1:GND", "black", []],
+    ["pd_2:1", "ssr2:IN", "green", []],
+    ["pd_2:2", "ssr2:GND", "black", []],
+    ["pd_3:1", "ssr3:IN", "green", []],
+    ["pd_3:2", "ssr3:GND", "black", []],
+    ["pd_4:1", "ssr4:IN", "green", []],
+    ["pd_4:2", "ssr4:GND", "black", []],
+    ["pd_5:1", "ssr5:IN", "green", []],
+    ["pd_5:2", "ssr5:GND", "black", []],
+    ["pd_6:1", "ssr6:IN", "green", []],
+    ["pd_6:2", "ssr6:GND", "black", []],
+    ["pd_7:1", "ssr7:IN", "green", []],
+    ["pd_7:2", "ssr7:GND", "black", []],
+    ["pd_8:1", "ssr8:IN", "green", []],
+    ["pd_8:2", "ssr8:GND", "black", []],
+    ["pd_9:1", "ssr9:IN", "green", []],
+    ["pd_9:2", "ssr9:GND", "black", []],
+    ["pd_10:1", "ssr10:IN", "green", []],
+    ["pd_10:2", "ssr10:GND", "black", []],
 
     ["pwr_12v:VCC", "pump_1:A", "red", ["v-30", "h620", "v180"]],
     ["pump_1:A", "pump_2:A", "red", ["h-20", "v100"]],

@@ -3,27 +3,28 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <esp_sleep.h>
+#include <esp_system.h>
 
 // ========== 0. PERSISTENT STATE (RTC memory, survives deep sleep & reset) ==========
-RTC_NOINIT_ATTR uint32_t lastSeqNum = 0;
-RTC_NOINIT_ATTR float pendingDoseMl = 0;
-RTC_NOINIT_ATTR int pendingDosePin = -1;
-RTC_NOINIT_ATTR unsigned long pendingDoseDuration = 0;
-RTC_NOINIT_ATTR uint32_t pendingDoseSeq = 0;
-RTC_NOINIT_ATTR float pendingDoseRequestedMl = 0;
+RTC_NOINIT_ATTR uint32_t lastSeqNum;
+RTC_NOINIT_ATTR float pendingDoseMl;
+RTC_NOINIT_ATTR int pendingDosePin;
+RTC_NOINIT_ATTR unsigned long pendingDoseDuration;
+RTC_NOINIT_ATTR uint32_t pendingDoseSeq;
+RTC_NOINIT_ATTR float pendingDoseRequestedMl;
 
-// New: Store a completed dose that was never published (offline)
-RTC_NOINIT_ATTR uint32_t completedOfflineSeq = 0;
-RTC_NOINIT_ATTR float completedOfflineVolume = 0;
+// Store a completed dose that was never published (offline)
+RTC_NOINIT_ATTR uint32_t completedOfflineSeq;
+RTC_NOINIT_ATTR float completedOfflineVolume;
 
-// ========== 1. HARDWARE MAPPING ==========
-const int RELAY_PH_DOWN   = 13;
-const int RELAY_PH_UP     = 14;
-const int RELAY_BLOOM     = 15;
-const int RELAY_MICRO     = 16;
-const int RELAY_GRO_FIN   = 17;   
-const int RELAY_CALMAG    = 25;
-const int RELAY_RO_WATER  = 26;   
+// ========== 1. HARDWARE MAPPING (100% SAFE PINS) ==========
+const int RELAY_PH_DOWN   = 32;
+const int RELAY_PH_UP     = 33;
+const int RELAY_BLOOM     = 25;
+const int RELAY_MICRO     = 26;
+const int RELAY_GRO_FIN   = 27;   
+const int RELAY_CALMAG    = 16;
+const int RELAY_RO_WATER  = 17;   
 const int RELAY_SUB_PUMP  = 18;
 const int RELAY_VALVE_A   = 19;
 const int RELAY_VALVE_B   = 21;
@@ -40,7 +41,7 @@ const char* TOPIC_STATUS     = "kevin/dwc/pump_node_1/status";
 const char* TOPIC_CONNECTION = "kevin/dwc/pump_node_1/connection"; 
 
 unsigned long wifiDisconnectTime = 0;
-const unsigned long WIFI_GRACE_PERIOD_MS = 30000; // 30 seconds
+const unsigned long WIFI_GRACE_PERIOD_MS = 30000; 
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -97,7 +98,6 @@ void publishStatus(const char* state, const char* task) {
 }
 
 void publishDoseComplete(uint32_t seq, float actualMl) {
-  // If the client is not connected, store this completion for later
   if (!client.connected()) {
     completedOfflineSeq = seq;
     completedOfflineVolume = actualMl;
@@ -114,14 +114,12 @@ void publishDoseComplete(uint32_t seq, float actualMl) {
   client.publish(TOPIC_STATUS, buffer);
   Serial.printf("📤 Dose complete: seq=%u, vol=%.1f ml\n", seq, actualMl);
   
-  // Clear any stored offline completion (this was the one)
   if (completedOfflineSeq == seq) {
     completedOfflineSeq = 0;
     completedOfflineVolume = 0;
   }
 }
 
-// ========== 5. SOFT-START ==========
 void softStartSubmersible() {
   delay(200);
 }
@@ -249,7 +247,6 @@ void reconnect() {
     client.publish(TOPIC_CONNECTION, "online", true);
     client.subscribe(TOPIC_COMMANDS);
 
-    // First, send any pending completion that happened offline
     if (completedOfflineSeq != 0 && completedOfflineVolume > 0) {
       Serial.printf("📤 Re-sending offline completion for seq=%u, vol=%.1f ml\n", completedOfflineSeq, completedOfflineVolume);
       JsonDocument doc;
@@ -263,7 +260,6 @@ void reconnect() {
       completedOfflineVolume = 0;
     }
 
-    // CASE 1: Dead Man's Switch paused the dose. Resume it!
     if (pendingDosePin != -1 && pendingDoseDuration > 0) {
       Serial.printf("🔁 Resuming paused dose after WiFi drop: pin %d for %lu ms (seq=%u)\n",
                     pendingDosePin, pendingDoseDuration, pendingDoseSeq);
@@ -279,12 +275,10 @@ void reconnect() {
       pendingDosePin = -1;
       pendingDoseDuration = 0;
     }
-    // CASE 2: Network dropped briefly, but we NEVER stopped pumping.
     else if (isSystemBusy) {
       Serial.printf("📢 Reconnected while busy. Broadcasting status for seq=%u\n", currentDoseSeq);
       publishStatus("busy", "resumed_dosing");
     }
-    // CASE 3: System is totally idle.
     else {
       publishStatus("idle", "none");
     }
@@ -298,17 +292,31 @@ void reconnect() {
 void setup() {
   Serial.begin(115200);
   randomSeed(analogRead(0));
+
+  // 1. CLEAR GARBAGE MEMORY ON COLD BOOT
+  esp_reset_reason_t reason = esp_reset_reason();
+  if (reason == ESP_RST_POWERON || reason == ESP_RST_BROWNOUT) {
+    pendingDosePin = -1;
+    pendingDoseDuration = 0;
+    pendingDoseMl = 0;
+    pendingDoseSeq = 0;
+    completedOfflineSeq = 0;
+    completedOfflineVolume = 0;
+    Serial.println("🧹 Cold boot detected: Wiped random RTC memory to prevent phantom pumps.");
+  }
   
+  // 2. PRE-LOAD LOW STATE BEFORE ENABLING OUTPUTS
   const int allPins[] = {RELAY_PH_DOWN, RELAY_PH_UP, RELAY_BLOOM, RELAY_MICRO,
                          RELAY_GRO_FIN, RELAY_CALMAG, RELAY_RO_WATER, RELAY_SUB_PUMP,
                          RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
+                         
   for (int pin : allPins) {
-    pinMode(pin, OUTPUT);
-    digitalWrite(pin, LOW); 
+    digitalWrite(pin, LOW); // Force the pin register to LOW first
+    pinMode(pin, OUTPUT);   // THEN connect the pin to the output driver
   }
 
-  // Resume interrupted dose if any
- if (pendingDosePin != -1 && pendingDoseDuration > 0) {
+  // 3. RESUME INTERRUPTED DOSE (if valid)
+  if (pendingDosePin != -1 && pendingDoseDuration > 0) {
     Serial.printf("🔁 Resuming interrupted dose: pin %d for %lu ms (%.1f ml) seq=%u\n", 
                   pendingDosePin, pendingDoseDuration, pendingDoseMl, pendingDoseSeq);
     isSystemBusy = true;
@@ -339,7 +347,7 @@ void setup() {
 }
 
 void loop() {
-  delay(10); // REMOVE IN PROD! Short delay to prevent slow clockspeeds (wokwi documentation recommendation)
+  delay(10); // Short delay to prevent slow clockspeeds
   if (!client.connected()) {
     if (wifiDisconnectTime == 0) {
       wifiDisconnectTime = millis();
