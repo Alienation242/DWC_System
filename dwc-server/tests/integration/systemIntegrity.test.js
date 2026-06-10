@@ -1,6 +1,6 @@
 const RecipeEngine = require("../../src/services/recipeEngine");
 const Watchdog = require("../../src/services/watchdog");
-const mockPrisma = require("../../mocks/mockPrisma");
+const { mockPrisma } = global;
 
 describe("System Integrity - Watchdog & Database Constraints", () => {
   let engine;

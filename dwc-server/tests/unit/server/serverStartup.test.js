@@ -1,5 +1,5 @@
 const { _autoSeed } = require("../../../src/server");
-const mockPrisma = require("../../../mocks/mockPrisma");
+const { mockPrisma } = global;
 const fs = require("fs").promises;
 
 describe("Server Startup Logic", () => {

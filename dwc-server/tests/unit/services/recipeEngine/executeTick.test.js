@@ -1,8 +1,8 @@
-require("../../../mocks/mockPrisma");
-const mockPrisma = require("../../../mocks/mockPrisma");
+const { mockPrisma } = global;
 const RecipeEngine = require("../../../../src/services/recipeEngine");
 const MockMqttService = require("../../../mocks/mockMqttService");
 const fs = require("fs").promises;
+
 jest.spyOn(fs, "readFile");
 jest.spyOn(fs, "writeFile");
 

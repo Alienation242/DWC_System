@@ -2,15 +2,13 @@ const request = require("supertest");
 const app = require("../../../src/server");
 const CalibrationService = require("../../../src/services/calibrationService");
 const fs = require("fs").promises;
-const mockPrisma = require("../../../mocks/mockPrisma");
+const { mockPrisma } = global;
 
-// Mock calibration service
 jest.mock("../../../src/services/calibrationService", () => ({
   load: jest.fn(),
   save: jest.fn(),
 }));
 
-// Mock MqttService to avoid network connections
 jest.mock("../../../src/services/mqttService", () => {
   return jest.fn().mockImplementation(() => ({
     deviceRegistry: { pump_node_1: "online", sensor_node_1: "online" },
@@ -19,12 +17,6 @@ jest.mock("../../../src/services/mqttService", () => {
     nextSeq: jest.fn(() => 1),
   }));
 });
-
-// Mock file system for nutrient config endpoints
-jest.mock("fs", () => ({
-  existsSync: jest.fn(() => true),
-  promises: { readFile: jest.fn(), writeFile: jest.fn() },
-}));
 
 describe("Server API Endpoints", () => {
   beforeEach(() => {

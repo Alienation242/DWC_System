@@ -1,5 +1,5 @@
 const Watchdog = require("../../../src/services/watchdog");
-const mockPrisma = require("../../../mocks/mockPrisma");
+const { mockPrisma } = global;
 
 describe("Watchdog Unit Tests", () => {
   beforeEach(() => {

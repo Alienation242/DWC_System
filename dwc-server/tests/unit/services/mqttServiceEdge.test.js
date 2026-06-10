@@ -1,6 +1,6 @@
 const MqttService = require("../../../src/services/mqttService");
 const mqtt = require("mqtt");
-const mockPrisma = require("../../../mocks/mockPrisma");
+const { mockPrisma } = global;
 
 jest.mock("mqtt");
 jest.mock("../../../src/services/calibrationService", () => ({
