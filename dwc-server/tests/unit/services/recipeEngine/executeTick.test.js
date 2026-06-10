@@ -59,6 +59,15 @@ describe("RecipeEngine.executeTick", () => {
     };
 
     fs.readFile.mockImplementation((path) => {
+      if (path.includes("hardware.json")) {
+        return Promise.resolve(
+          JSON.stringify({
+            peristaltic_ml_per_sec: 200.0, // matches test expectations
+            submersible_ml_per_sec: 50.0,
+            safety_buffer_ms: 30000,
+          }),
+        );
+      }
       if (path.includes("nutrient_profile.json")) {
         return Promise.resolve(
           JSON.stringify({

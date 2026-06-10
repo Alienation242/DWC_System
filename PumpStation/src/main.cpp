@@ -56,8 +56,8 @@ float currentDoseFlowRate = 20.0;
 uint32_t currentDoseSeq = 0;
 float currentDoseRequestedMl = 0;
 
-float PERISTALTIC_ML_PER_SEC = 200.0;   
-float SUBMERSIBLE_ML_PER_SEC = 500.0;  
+float PERISTALTIC_ML_PER_SEC = 2.0;   
+float SUBMERSIBLE_ML_PER_SEC = 50.0;  
 const unsigned long MAX_RUNTIME_MS = 600000; 
 
 // ========== 4. FAIL-SAFE LOGIC ==========

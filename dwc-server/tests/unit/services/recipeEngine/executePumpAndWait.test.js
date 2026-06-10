@@ -7,6 +7,19 @@ jest.mock("../../../../src/services/watchdog", () => ({
   logSuccessfulDose: jest.fn(),
 }));
 
+jest.spyOn(fs, "readFile").mockImplementation((path) => {
+  if (path.includes("hardware.json")) {
+    return Promise.resolve(
+      JSON.stringify({
+        peristaltic_ml_per_sec: 200.0,
+        submersible_ml_per_sec: 50.0,
+        safety_buffer_ms: 30000,
+      }),
+    );
+  }
+  return Promise.reject(new Error("unexpected path"));
+});
+
 describe("RecipeEngine.executePumpAndWait", () => {
   let engine;
   let mqtt;

@@ -15,11 +15,18 @@ const NUTRIENT_PROFILE_PATH = path.join(
   "nutrient_profile.json",
 );
 const SYSTEM_CONFIG_PATH = path.join(process.cwd(), "config", "system.json");
+const HARDWARE_CONFIG_PATH = path.join(
+  process.cwd(),
+  "config",
+  "hardware.json",
+);
 
 class RecipeEngine {
   constructor(mqttService) {
     this.mqtt = mqttService;
     this.isTicking = false;
+    this.peristalticFlowMlPerSec = null;
+    this.submersibleFlowMlPerSec = null;
   }
 
   // ---------- Pure helpers ----------
@@ -214,8 +221,23 @@ class RecipeEngine {
     return { cal: calMl, gro, micro, bloom, fin };
   }
 
+  async _ensureHardwareConfig() {
+    if (this.peristalticFlowMlPerSec !== null) return;
+    try {
+      const raw = await fs.readFile(HARDWARE_CONFIG_PATH, "utf8");
+      const config = JSON.parse(raw);
+      this.peristalticFlowMlPerSec = config.peristaltic_ml_per_sec;
+      this.submersibleFlowMlPerSec = config.submersible_ml_per_sec;
+    } catch (err) {
+      console.warn("⚠️ Could not load hardware.json, using defaults");
+      this.peristalticFlowMlPerSec = 2.0; // safe fallback
+      this.submersibleFlowMlPerSec = 50.0;
+    }
+  }
+
   // ---------- Core delivery helper (with retry & overflow shield) ----------
   async _deliverToPot(volumeMl, targetPot = "A") {
+    await this._ensureHardwareConfig();
     if (volumeMl <= 0.5) return;
     let remaining = volumeMl;
     while (remaining > 0.5) {
@@ -233,7 +255,7 @@ class RecipeEngine {
       } catch (err) {
         if (err.message === "OFFLINE_INTERRUPT") {
           const elapsed = Date.now() - startTime;
-          const pumped = (elapsed / 1000) * SUBMERSIBLE_FLOW_ML_PER_SEC;
+          const pumped = (elapsed / 1000) * this.submersibleFlowMlPerSec;
           remaining -= pumped;
           if (remaining > 0.5) {
             console.warn(
@@ -249,10 +271,11 @@ class RecipeEngine {
 
   // ---------- Single pump dose (with watchdog, retries, and resume logic) ----------
   async executePumpAndWait(pumpName, actionStr, amountMl) {
+    await this._ensureHardwareConfig();
     if (amountMl <= 0.5) return 0;
     const isWater = pumpName.toLowerCase().includes("water");
     const safeMl = isWater ? amountMl : Math.min(15.0, amountMl);
-    const flowRate = 200.0; // aligned with firmware (mL/s)
+    const flowRate = this.peristalticFlowMlPerSec;
 
     if (!(await Watchdog.isSafeToDose(pumpName, safeMl))) return 0;
 

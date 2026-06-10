@@ -7,6 +7,14 @@ jest.mock("../../src/services/watchdog", () => ({
   logSuccessfulDose: jest.fn().mockResolvedValue(true),
 }));
 
+jest.spyOn(fs, "readFile").mockResolvedValue(
+  JSON.stringify({
+    peristaltic_ml_per_sec: 200.0,
+    submersible_ml_per_sec: 50.0,
+    safety_buffer_ms: 30000,
+  }),
+);
+
 // ==========================================
 // THE VIRTUAL HARDWARE (unchanged)
 // ==========================================
