@@ -270,7 +270,15 @@ class RecipeEngine {
   }
 
   // ---------- Single pump dose (with watchdog, retries, and resume logic) ----------
-  async executePumpAndWait(pumpName, actionStr, amountMl) {
+  async executePumpAndWait(pumpName, actionStr, amountMl, options = {}) {
+    const {
+      maxRetries = 3,
+      retryDelayMs = 500,
+      waitForDeviceTimeoutMs = 5000,
+      waitForBusyTimeoutMs = 10000,
+      waitForCompleteExtraMs = 30000,
+    } = options;
+
     await this._ensureHardwareConfig();
     if (amountMl <= 0.5) return 0;
     const isWater = pumpName.toLowerCase().includes("water");
@@ -283,31 +291,33 @@ class RecipeEngine {
 
     let remainingMl = safeMl;
     let retries = 0;
-    const MAX_RETRIES = 3;
 
-    while (remainingMl > 0.5 && retries < MAX_RETRIES) {
+    while (remainingMl > 0.5 && retries < maxRetries) {
       try {
-        await this.mqtt.waitForDevice("pump_node_1");
+        await this.mqtt.waitForDevice("pump_node_1", waitForDeviceTimeoutMs);
       } catch (err) {
-        // Device unreachable – treat as offline interrupt and retry
         console.warn(`⚠️ Device unreachable: ${err.message}. Retrying...`);
         retries++;
+        if (retryDelayMs > 0)
+          await new Promise((r) => setTimeout(r, retryDelayMs));
         continue;
       }
-      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      if (retryDelayMs > 0)
+        await new Promise((r) => setTimeout(r, retryDelayMs));
 
       const seq = this.mqtt.nextSeq();
       let doseStartTime = null;
 
       try {
         this.mqtt.sendCommand(actionStr, remainingMl, "None", seq);
-        await this.mqtt.waitForBusy(10000);
+        await this.mqtt.waitForBusy(waitForBusyTimeoutMs);
         doseStartTime = Date.now();
 
         const result = await Promise.race([
           this.waitForDoseComplete(
             seq,
-            2 * (remainingMl / flowRate) * 1000 + 30000,
+            2 * (remainingMl / flowRate) * 1000 + waitForCompleteExtraMs,
           ),
           this.mqtt.waitForIdle().then(() => ({ type: "idle" })),
         ]);
@@ -326,7 +336,7 @@ class RecipeEngine {
         if (err.message === "OFFLINE_INTERRUPT") {
           retries++;
           console.warn(
-            `⚠️ Disconnect during dose. Retry ${retries}/${MAX_RETRIES}`,
+            `⚠️ Disconnect during dose. Retry ${retries}/${maxRetries}`,
           );
 
           let assumedPumped = 0;
@@ -335,7 +345,10 @@ class RecipeEngine {
           }
 
           try {
-            await this.mqtt.waitForDevice("pump_node_1");
+            await this.mqtt.waitForDevice(
+              "pump_node_1",
+              waitForDeviceTimeoutMs,
+            );
             console.log(
               `🔌 Hardware reconnected. Waiting for completion or resume of seq=${seq}...`,
             );
@@ -378,9 +391,9 @@ class RecipeEngine {
       }
     }
 
-    if (remainingMl > 0.5 && retries >= MAX_RETRIES) {
+    if (remainingMl > 0.5 && retries >= maxRetries) {
       throw new Error(
-        `Failed to dose ${pumpName} after ${MAX_RETRIES} retries, ${remainingMl.toFixed(1)}ml left`,
+        `Failed to dose ${pumpName} after ${maxRetries} retries, ${remainingMl.toFixed(1)}ml left`,
       );
     }
 
