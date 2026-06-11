@@ -42,11 +42,12 @@ describe("RecipeEngine - Edge Cases & Uncovered Branches", () => {
       await new Promise((r) => setTimeout(r, 50));
       throw new Error("OFFLINE_INTERRUPT");
     });
-    // First waitForDevice succeeds, then we never call it again (loop will break)
+    // After the interrupt, the loop will retry. waitForIdle will succeed on second call
+    mqtt.waitForIdle.mockResolvedValueOnce(); // second call resolves
     const spySend = jest.spyOn(mqtt, "sendCommand");
     await engine._deliverToPot(100);
-    // Should have called sendCommand once, then after interrupt, remaining becomes <0.5 (deducted)
-    expect(spySend).toHaveBeenCalledTimes(1);
+    // It should call sendCommand twice: first time, then after deduction it still has volume >0.5, so second call
+    expect(spySend).toHaveBeenCalledTimes(2);
   });
 
   test("executePumpAndWait – idle instead of complete (result.type === 'idle')", async () => {
