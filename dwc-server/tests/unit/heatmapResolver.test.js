@@ -64,4 +64,9 @@ describe("RecipeEngine - PPFD to PPM Heatmap State Machine", () => {
     const result = engine.getDynamicTarget(candyGamesMock, 29, null);
     expect(result.targetPPM).toBeCloseTo(294.7, 1);
   });
+
+  test("ripening flush with floorPpm === 0 returns target 0 immediately", () => {
+    const result = engine.getDynamicTarget(candyGamesMock, 118, 1500);
+    expect(result.targetPPM).toBe(0);
+  });
 });

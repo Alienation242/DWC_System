@@ -73,4 +73,19 @@ describe("Server Startup Logic", () => {
     await _autoSeed();
     expect(createSpy).not.toHaveBeenCalled();
   });
+
+  test("autoSeed creates watchdog configs when not in test environment", async () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    const prisma = require("@prisma/client").PrismaClient();
+    const findUniqueMock = jest
+      .spyOn(prisma.watchdogConfig, "findUnique")
+      .mockResolvedValue(null);
+    const createMock = jest
+      .spyOn(prisma.watchdogConfig, "create")
+      .mockResolvedValue({});
+    await _autoSeed();
+    expect(createMock).toHaveBeenCalled();
+    process.env.NODE_ENV = originalEnv;
+  });
 });

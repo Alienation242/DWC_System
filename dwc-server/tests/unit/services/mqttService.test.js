@@ -278,4 +278,17 @@ describe("MqttService", () => {
     );
     consoleSpy.mockRestore();
   });
+
+  test("connect handler subscribes to topics and logs", () => {
+    const consoleSpy = jest.spyOn(console, "log").mockImplementation();
+    // Clear previous subscribe calls from beforeEach
+    mockClient.subscribe.mockClear();
+    const connectHandler = mockClient.on.mock.calls.find(
+      (c) => c[0] === "connect",
+    )[1];
+    connectHandler();
+    expect(consoleSpy).toHaveBeenCalledWith("✅ Connected to MQTT Broker");
+    expect(mockClient.subscribe).toHaveBeenCalledTimes(3);
+    consoleSpy.mockRestore();
+  });
 });
