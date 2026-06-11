@@ -176,4 +176,8 @@ describe("calculateDeficit", () => {
     const result = engine.resolveCurveInPhase(node, 20, 21, true);
     expect(result).toBe(0);
   });
+
+  test("resolveCurve returns 0 if param is null", () => {
+    expect(engine.resolveCurve(null, 0.5)).toBe(0);
+  });
 });

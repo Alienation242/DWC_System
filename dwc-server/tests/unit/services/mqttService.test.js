@@ -30,7 +30,10 @@ describe("MqttService", () => {
     if (connectHandler) connectHandler();
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => {
+    jest.clearAllMocks();
+    if (service) service.removeAllListeners();
+  });
 
   test("nextSeq increments sequence number", () => {
     expect(service.nextSeq()).toBe(1);

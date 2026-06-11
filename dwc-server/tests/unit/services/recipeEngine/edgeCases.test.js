@@ -21,6 +21,7 @@ describe("RecipeEngine - Edge Cases & Uncovered Branches", () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     jest.restoreAllMocks();
   });
 
@@ -80,6 +81,17 @@ describe("RecipeEngine - Edge Cases & Uncovered Branches", () => {
     });
     await expect(promise).rejects.toThrow(
       /Failed to dose Water after 1 retries/,
+    );
+  });
+
+  test("executePumpAndWait – waitForDevice timeout triggers multiple retries and exhaustion", async () => {
+    mqtt.waitForDevice.mockRejectedValue(new Error("TIMEOUT"));
+    const promise = engine.executePumpAndWait("Water", "dose_water", 100, {
+      maxRetries: 2,
+      retryDelayMs: 10,
+    });
+    await expect(promise).rejects.toThrow(
+      /Failed to dose Water after 2 retries/,
     );
   });
 });

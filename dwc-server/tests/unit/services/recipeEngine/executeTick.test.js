@@ -94,6 +94,11 @@ describe("RecipeEngine.executeTick", () => {
     });
   });
 
+  afterEach(() => {
+    if (engine) engine.isTicking = false;
+    jest.clearAllMocks();
+  });
+
   const runTickWithTelemetry = async (telemetry) => {
     mockPrisma.telemetryLog.findFirst.mockResolvedValue(telemetry);
     await engine.executeTick();

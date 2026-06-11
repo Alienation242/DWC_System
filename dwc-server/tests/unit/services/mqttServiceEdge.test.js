@@ -31,6 +31,10 @@ describe("MqttService Edge Cases", () => {
     if (connectHandler) connectHandler();
   });
 
+  afterEach(() => {
+    if (service) service.removeAllListeners();
+  });
+
   test("waitForDevice rejects on timeout", async () => {
     service.deviceRegistry.pump_node_1 = "offline";
     await expect(service.waitForDevice("pump_node_1", 10)).rejects.toThrow(
@@ -154,5 +158,16 @@ describe("MqttService Edge Cases", () => {
     const unknownTopic = "kevin/dwc/unknown";
     const message = { toString: () => "something" };
     expect(() => messageHandler(unknownTopic, message)).not.toThrow();
+  });
+
+  test("waitForIdle triggers timeout and resolves (branch coverage)", async () => {
+    const service = new MqttService(null);
+    service.hardwareStatus = "busy";
+    service.deviceRegistry.pump_node_1 = "online";
+    jest.useFakeTimers();
+    const promise = service.waitForIdle(5000);
+    jest.advanceTimersByTime(5000);
+    await expect(promise).resolves.toBeUndefined();
+    jest.useRealTimers();
   });
 });
