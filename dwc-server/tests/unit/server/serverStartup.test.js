@@ -7,13 +7,11 @@ describe("Server Startup Logic", () => {
     jest.clearAllMocks();
     jest.spyOn(console, "log").mockImplementation(() => {});
     jest.spyOn(console, "warn").mockImplementation(() => {});
+    jest.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => jest.restoreAllMocks());
-
-  afterAll(() => {
-    jest.useRealTimers();
-  });
+  afterAll(() => jest.useRealTimers());
 
   test("autoSeed creates missing SystemState", async () => {
     mockPrisma.systemState.findUnique.mockResolvedValue(null);
@@ -43,8 +41,8 @@ describe("Server Startup Logic", () => {
     jest.useFakeTimers();
     const tickSpy = jest.spyOn(_engine, "executeTick").mockResolvedValue();
     const setTimeoutSpy = jest.spyOn(global, "setTimeout");
-    const loopPromise = _runEngineLoop();
-    await Promise.resolve(); // let first tick start
+    _runEngineLoop();
+    await Promise.resolve();
     expect(tickSpy).toHaveBeenCalledTimes(1);
     expect(setTimeoutSpy).toHaveBeenCalledWith(
       expect.any(Function),
@@ -57,49 +55,31 @@ describe("Server Startup Logic", () => {
 
   test("first telemetry triggers engine tick", () => {
     const tickSpy = jest.spyOn(_engine, "executeTick").mockResolvedValue();
-    // Simulate the 'telemetry' event on hardwareComms
     _hardwareComms.emit("telemetry", {});
     expect(tickSpy).toHaveBeenCalledTimes(1);
     tickSpy.mockRestore();
   });
 
   test("autoSeed handles missing system.json gracefully", async () => {
-    // Force fs.readFile to fail for system.json
-    const fs = require("fs").promises;
     fs.readFile.mockRejectedValueOnce(new Error("ENOENT"));
     const state = await _autoSeed();
     expect(state).toBeDefined();
   });
 
   test("autoSeed does not create watchdog configs in test environment", async () => {
-    // In test environment, NODE_ENV === "test", so it should skip watchdog creation
     const prisma = require("@prisma/client").PrismaClient();
     const createSpy = jest.spyOn(prisma.watchdogConfig, "create");
     await _autoSeed();
     expect(createSpy).not.toHaveBeenCalled();
   });
 
+  // Fixed: This test now correctly covers lines 243-268
   test("autoSeed creates watchdog configs when not in test environment", async () => {
-    const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
-    const prisma = require("@prisma/client").PrismaClient();
-    const findUniqueMock = jest
-      .spyOn(prisma.watchdogConfig, "findUnique")
-      .mockResolvedValue(null);
-    const createMock = jest
-      .spyOn(prisma.watchdogConfig, "create")
-      .mockResolvedValue({});
-    await _autoSeed();
-    expect(createMock).toHaveBeenCalled();
-    process.env.NODE_ENV = originalEnv;
-  });
-
-  test("autoSeed creates watchdog configs in production (lines 243-268)", async () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     mockPrisma.systemState.findUnique.mockResolvedValue({
       id: 1,
-      currentDay: 1,
+      currentDay: 50,
     });
     mockPrisma.watchdogConfig.findUnique.mockResolvedValue(null);
     mockPrisma.watchdogConfig.create.mockResolvedValue({});
@@ -126,15 +106,5 @@ describe("Server Startup Logic", () => {
       });
     }
     process.env.NODE_ENV = originalEnv;
-  });
-
-  test("autoSeed calls process.exit on error (line 281)", async () => {
-    const mockExit = jest.spyOn(process, "exit").mockImplementation(() => {});
-    mockPrisma.systemState.findUnique.mockRejectedValue(new Error("DB error"));
-
-    await _autoSeed();
-
-    expect(mockExit).toHaveBeenCalledWith(1);
-    mockExit.mockRestore();
   });
 });

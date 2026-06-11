@@ -401,4 +401,48 @@ describe("MqttService", () => {
     );
     consoleLogSpy.mockRestore();
   });
+
+  test("connect handler subscribes to all topics (lines 35,37) - ensure coverage", () => {
+    // We already have a similar test, but let's force coverage by directly invoking
+    const consoleSpy = jest.spyOn(console, "log").mockImplementation();
+    const mockSubscribe = jest.fn();
+    service.client.subscribe = mockSubscribe;
+    const connectHandler = service.client.on.mock.calls.find(
+      (c) => c[0] === "connect",
+    )[1];
+    connectHandler();
+    expect(consoleSpy).toHaveBeenCalledWith("✅ Connected to MQTT Broker");
+    expect(mockSubscribe).toHaveBeenCalledTimes(3);
+    consoleSpy.mockRestore();
+  });
+
+  test("waitForDevice triggers timeout and rejects (lines 90-93)", async () => {
+    service.deviceRegistry.pump_node_1 = "offline";
+    jest.useFakeTimers();
+    const promise = service.waitForDevice("pump_node_1", 100);
+    jest.advanceTimersByTime(100);
+    await expect(promise).rejects.toThrow(
+      "TIMEOUT: pump_node_1 did not reconnect.",
+    );
+    jest.useRealTimers();
+  });
+
+  test("waitForBusy triggers timeout and rejects (line 163)", async () => {
+    service.hardwareStatus = "idle";
+    jest.useFakeTimers();
+    const promise = service.waitForBusy(100);
+    jest.advanceTimersByTime(100);
+    await expect(promise).rejects.toThrow("TIMEOUT: Pump did not become busy");
+    jest.useRealTimers();
+  });
+
+  test("sendCommand logs to console (line 207)", () => {
+    const consoleLogSpy = jest.spyOn(console, "log").mockImplementation();
+    // Directly call sendCommand on the existing service
+    service.sendCommand("dose_water", 100, "None", 42);
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect.stringContaining("📤 Command Sent [seq=42]"),
+    );
+    consoleLogSpy.mockRestore();
+  });
 });

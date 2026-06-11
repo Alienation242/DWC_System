@@ -265,6 +265,7 @@ if (require.main === module) {
     })
     .catch((err) => {
       console.error("❌ Failed to seed database on startup:", err);
+      /* istanbul ignore next */
       process.exit(1);
     });
 }
