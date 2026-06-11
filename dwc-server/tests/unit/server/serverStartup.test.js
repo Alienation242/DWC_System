@@ -93,4 +93,48 @@ describe("Server Startup Logic", () => {
     expect(createMock).toHaveBeenCalled();
     process.env.NODE_ENV = originalEnv;
   });
+
+  test("autoSeed creates watchdog configs in production (lines 243-268)", async () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    mockPrisma.systemState.findUnique.mockResolvedValue({
+      id: 1,
+      currentDay: 1,
+    });
+    mockPrisma.watchdogConfig.findUnique.mockResolvedValue(null);
+    mockPrisma.watchdogConfig.create.mockResolvedValue({});
+
+    await _autoSeed();
+
+    // Verify create was called for each required pump
+    const requiredPumps = [
+      "pH_Down",
+      "pH_Up",
+      "Micro",
+      "Bloom",
+      "CalMag",
+      "Gro",
+      "Finisher",
+      "Water",
+    ];
+    expect(mockPrisma.watchdogConfig.create).toHaveBeenCalledTimes(
+      requiredPumps.length,
+    );
+    for (const pump of requiredPumps) {
+      expect(mockPrisma.watchdogConfig.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ pumpName: pump }),
+      });
+    }
+    process.env.NODE_ENV = originalEnv;
+  });
+
+  test("autoSeed calls process.exit on error (line 281)", async () => {
+    const mockExit = jest.spyOn(process, "exit").mockImplementation(() => {});
+    mockPrisma.systemState.findUnique.mockRejectedValue(new Error("DB error"));
+
+    await _autoSeed();
+
+    expect(mockExit).toHaveBeenCalledWith(1);
+    mockExit.mockRestore();
+  });
 });

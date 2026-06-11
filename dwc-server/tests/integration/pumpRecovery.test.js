@@ -296,4 +296,15 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
       expect(result).toBe(1000);
     }, 10000);
   });
+
+  test("MockMqttService.sendCommand sets activeCommand (line 26)", () => {
+    const mqttMock = new MockMqttService();
+    mqttMock.sendCommand("dose_water", 100, "None", 123);
+    expect(mqttMock.activeCommand).toEqual({
+      action: "dose_water",
+      ml: 100,
+      target: "None",
+      seq: 123,
+    });
+  });
 });

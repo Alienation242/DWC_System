@@ -158,4 +158,11 @@ describe("Server API Endpoints", () => {
     const res = await request(app).post("/api/calibration").send({});
     expect(res.statusCode).toBe(500);
   });
+
+  test("GET /api/nutrient-config handles invalid JSON (line 199-201)", async () => {
+    fs.readFile.mockResolvedValue("{invalid json}");
+    const res = await request(app).get("/api/nutrient-config");
+    expect(res.statusCode).toBe(500);
+    expect(res.body.error).toBe("Failed to load nutrient profile.");
+  });
 });

@@ -343,4 +343,62 @@ describe("MqttService", () => {
     await expect(promise).resolves.toBeUndefined();
     jest.useRealTimers();
   });
+
+  test("connect handler subscribes to all topics (lines 35,37)", () => {
+    // Re-create service to capture the connect handler
+    const mockClient = {
+      on: jest.fn(),
+      subscribe: jest.fn(),
+      publish: jest.fn(),
+      removeListener: jest.fn(),
+    };
+    mqtt.connect.mockReturnValue(mockClient);
+    const service = new MqttService(null);
+    const connectHandler = mockClient.on.mock.calls.find(
+      (c) => c[0] === "connect",
+    )[1];
+    connectHandler();
+    expect(mockClient.subscribe).toHaveBeenCalledWith(
+      "kevin/dwc/sensor_node_1/telemetry",
+    );
+    expect(mockClient.subscribe).toHaveBeenCalledWith(
+      "kevin/dwc/pump_node_1/status",
+    );
+    expect(mockClient.subscribe).toHaveBeenCalledWith("kevin/dwc/+/connection");
+  });
+
+  test("waitForDevice triggers timeout and rejects (lines 90-93)", async () => {
+    const service = new MqttService(null);
+    service.deviceRegistry.pump_node_1 = "offline";
+    jest.useFakeTimers();
+    const promise = service.waitForDevice("pump_node_1", 1000);
+    jest.advanceTimersByTime(1000);
+    await expect(promise).rejects.toThrow(
+      "TIMEOUT: pump_node_1 did not reconnect.",
+    );
+    jest.useRealTimers();
+  });
+
+  test("waitForBusy triggers timeout and rejects (line 163)", async () => {
+    const service = new MqttService(null);
+    service.hardwareStatus = "idle";
+    jest.useFakeTimers();
+    const promise = service.waitForBusy(100);
+    jest.advanceTimersByTime(100);
+    await expect(promise).rejects.toThrow("TIMEOUT: Pump did not become busy");
+    jest.useRealTimers();
+  });
+
+  test("sendCommand logs to console (line 207)", () => {
+    const consoleLogSpy = jest.spyOn(console, "log").mockImplementation();
+    const mockClient = { publish: jest.fn() };
+    const service = new MqttService(null);
+    service.client = mockClient;
+    service.seqCounter = 0;
+    service.sendCommand("dose_water", 100, "None", 42);
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect.stringContaining("📤 Command Sent [seq=42]"),
+    );
+    consoleLogSpy.mockRestore();
+  });
 });
