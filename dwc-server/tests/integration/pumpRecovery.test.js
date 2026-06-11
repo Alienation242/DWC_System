@@ -227,4 +227,40 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
     );
     expect(mqttMock.sendCommand).toHaveBeenCalledTimes(1);
   }, 10000);
+
+  test("executePumpAndWait – resumes after offline and gets busy status", async () => {
+    // Simulate first dose starts, then network drop, then resume
+    mqttMock.waitForBusy.mockResolvedValueOnce();
+    mqttMock.waitForIdle.mockImplementationOnce(async () => {
+      throw new Error("OFFLINE_INTERRUPT");
+    });
+    let reconnect = false;
+    mqttMock.waitForDevice.mockImplementation(async (device, timeout) => {
+      if (!reconnect) {
+        reconnect = true;
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    // After reconnect, simulate busy (resumed dosing) then complete
+    mqttMock.waitForBusy.mockResolvedValueOnce();
+    const dosePromise = engine.executePumpAndWait("Water", "dose_water", 1000, {
+      maxRetries: 1,
+      retryDelayMs: 10,
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    mqttMock.emit("hardware_status", {
+      status: "busy",
+      task: "resumed_dosing",
+      seq: 1,
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    mqttMock.emit("pump_message", {
+      seq: 1,
+      status: "dose_complete",
+      volume_ml: 1000,
+    });
+    const result = await dosePromise;
+    expect(result).toBe(1000);
+  }, 10000);
 });

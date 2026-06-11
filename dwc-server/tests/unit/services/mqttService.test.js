@@ -32,7 +32,10 @@ describe("MqttService", () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    if (service) service.removeAllListeners();
+    if (service) {
+      service.removeAllListeners();
+      if (service.client && service.client.end) service.client.end();
+    }
   });
 
   test("nextSeq increments sequence number", () => {
@@ -293,5 +296,45 @@ describe("MqttService", () => {
     expect(consoleSpy).toHaveBeenCalledWith("✅ Connected to MQTT Broker");
     expect(mockClient.subscribe).toHaveBeenCalledTimes(3);
     consoleSpy.mockRestore();
+  });
+
+  test("connect handler executes all subscriptions", () => {
+    const service = new MqttService(null);
+    const mockSubscribe = jest.fn();
+    service.client.subscribe = mockSubscribe;
+    // Manually call the stored connect handler
+    const connectHandler = service.client.on.mock.calls.find(
+      (c) => c[0] === "connect",
+    )[1];
+    connectHandler();
+    expect(mockSubscribe).toHaveBeenCalledTimes(3);
+    expect(mockSubscribe).toHaveBeenCalledWith(
+      "kevin/dwc/sensor_node_1/telemetry",
+    );
+    expect(mockSubscribe).toHaveBeenCalledWith("kevin/dwc/pump_node_1/status");
+    expect(mockSubscribe).toHaveBeenCalledWith("kevin/dwc/+/connection");
+  });
+
+  test("waitForDevice triggers timeout branch", async () => {
+    const service = new MqttService(null);
+    service.deviceRegistry.pump_node_1 = "offline";
+    jest.useFakeTimers();
+    const promise = service.waitForDevice("pump_node_1", 5000);
+    jest.advanceTimersByTime(5000);
+    await expect(promise).rejects.toThrow(
+      "TIMEOUT: pump_node_1 did not reconnect.",
+    );
+    jest.useRealTimers();
+  });
+
+  test("waitForIdle triggers timeout branch and resolves", async () => {
+    const service = new MqttService(null);
+    service.hardwareStatus = "busy";
+    service.deviceRegistry.pump_node_1 = "online";
+    jest.useFakeTimers();
+    const promise = service.waitForIdle(5000);
+    jest.advanceTimersByTime(5000);
+    await expect(promise).resolves.toBeUndefined();
+    jest.useRealTimers();
   });
 });
