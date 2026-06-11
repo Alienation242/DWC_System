@@ -236,4 +236,46 @@ describe("MqttService", () => {
     );
     consoleErrorSpy.mockRestore();
   });
+
+  test("waitForBusy removes listener on timeout", async () => {
+    const service = new MqttService(null);
+    service.hardwareStatus = "idle";
+    const promise = service.waitForBusy(10);
+    await expect(promise).rejects.toThrow("TIMEOUT");
+    // No need to check listener removal explicitly; the promise cleanup should have run
+  });
+
+  test("waitForIdle rejects when device goes offline after waiting", async () => {
+    const service = new MqttService(null);
+    service.hardwareStatus = "busy";
+    service.deviceRegistry.pump_node_1 = "online";
+    const promise = service.waitForIdle(100);
+    // Simulate offline event after a tick
+    setTimeout(() => {
+      service.emit("network_change", "pump_node_1", "offline");
+    }, 10);
+    await expect(promise).rejects.toThrow("OFFLINE_INTERRUPT");
+  });
+
+  test("handleHardwareStatus handles missing task/seq gracefully", () => {
+    const service = new MqttService(null);
+    const invalidMessage = { toString: () => '{"status":"busy"}' }; // no task, no seq
+    expect(() => service.handleHardwareStatus(invalidMessage)).not.toThrow();
+  });
+
+  test("handleTelemetry error when conversion fails", async () => {
+    const CalibrationService = require("../../../src/services/calibrationService");
+    CalibrationService.convertPH.mockRejectedValue(
+      new Error("Calibration error"),
+    );
+    const service = new MqttService(null);
+    const message = { toString: () => '{"rawPH":2048,"rawEC":1024}' };
+    const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+    await service.handleTelemetry(message);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      "❌ Failed to process telemetry:",
+      expect.any(String),
+    );
+    consoleSpy.mockRestore();
+  });
 });

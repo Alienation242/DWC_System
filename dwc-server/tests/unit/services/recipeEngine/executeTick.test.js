@@ -313,4 +313,48 @@ describe("RecipeEngine.executeTick", () => {
       expect.any(Number),
     );
   });
+
+  test("dilution handles targetPPM = 0 without crashing", async () => {
+    // Set systemState to a day where targetPPM = 0 (e.g., ripening flush)
+    mockPrisma.systemState.findFirst.mockResolvedValue({
+      currentDay: 119, // last day of ripening, targetPPM = 0
+      sysVol: 18,
+    });
+    // Set telemetry with high EC (excess)
+    mockPrisma.telemetryLog.findFirst.mockResolvedValue({
+      realPH: 5.8,
+      realEC: 2000, // corresponds to PPM 1000
+      timestamp: new Date(),
+      isTankEmpty: false,
+      isTankOverflowing: false,
+    });
+    // Mock strain profile with ripening basePpm ending at 0
+    const ripeningProfile = {
+      flipWeek: 9,
+      stretchWks: 2,
+      bulkWks: 4,
+      ripenWks: 3,
+      phases: {
+        veg: { basePpm: { start: 35, end: 750, curve: 1.5 } },
+        initiation: { basePpm: { start: 662.5, end: 800, curve: 1.0 } },
+        bulking: { basePpm: { start: 800, end: 800, curve: 1.0 } },
+        ripening: { basePpm: { start: 800, end: 0, curve: 1.0 } },
+      },
+    };
+    fs.readFile.mockImplementation((path) => {
+      if (path.includes(".json"))
+        return Promise.resolve(JSON.stringify(ripeningProfile));
+      return Promise.reject(new Error("no mock"));
+    });
+
+    await engine.executeTick();
+
+    // Should not crash; dilutionMl calculation uses targetPPM=0 -> yields Infinity, capped by MAX_BATCH_ML
+    // We just verify that executePumpAndWait was called for dilution (since actualWater > 0)
+    expect(engine.executePumpAndWait).toHaveBeenCalledWith(
+      "Water",
+      "dose_water",
+      expect.any(Number),
+    );
+  });
 });

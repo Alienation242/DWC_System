@@ -57,4 +57,20 @@ describe("Server Startup Logic", () => {
     expect(tickSpy).toHaveBeenCalledTimes(1);
     tickSpy.mockRestore();
   });
+
+  test("autoSeed handles missing system.json gracefully", async () => {
+    // Force fs.readFile to fail for system.json
+    const fs = require("fs").promises;
+    fs.readFile.mockRejectedValueOnce(new Error("ENOENT"));
+    const state = await _autoSeed();
+    expect(state).toBeDefined();
+  });
+
+  test("autoSeed does not create watchdog configs in test environment", async () => {
+    // In test environment, NODE_ENV === "test", so it should skip watchdog creation
+    const prisma = require("@prisma/client").PrismaClient();
+    const createSpy = jest.spyOn(prisma.watchdogConfig, "create");
+    await _autoSeed();
+    expect(createSpy).not.toHaveBeenCalled();
+  });
 });
