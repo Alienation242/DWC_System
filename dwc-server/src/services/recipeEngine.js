@@ -286,7 +286,14 @@ class RecipeEngine {
     const MAX_RETRIES = 3;
 
     while (remainingMl > 0.5 && retries < MAX_RETRIES) {
-      await this.mqtt.waitForDevice("pump_node_1");
+      try {
+        await this.mqtt.waitForDevice("pump_node_1");
+      } catch (err) {
+        // Device unreachable – treat as offline interrupt and retry
+        console.warn(`⚠️ Device unreachable: ${err.message}. Retrying...`);
+        retries++;
+        continue;
+      }
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       const seq = this.mqtt.nextSeq();

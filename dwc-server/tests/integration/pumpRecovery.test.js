@@ -141,10 +141,13 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
 
   beforeEach(() => {
     jest.useFakeTimers();
-    // Mock Date.now to return the fake timer time
     realDateNow = Date.now;
-    Date.now = jest.fn(() => new Date().getTime()); // will return fake time
+    Date.now = jest.fn(() => new Date().getTime());
     mqttMock = new MockMqttService();
+
+    // ✅ Add spy on sendCommand
+    jest.spyOn(mqttMock, "sendCommand");
+
     engine = new RecipeEngine(mqttMock);
 
     jest.spyOn(console, "log").mockImplementation(() => {});
@@ -153,9 +156,50 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    jest.restoreAllMocks(); // restores all spies (including sendCommand and console)
+    // Reset custom mock implementations back to default
+    mqttMock.waitForBusy.mockReset();
+    mqttMock.waitForIdle.mockReset();
+    mqttMock.waitForDevice.mockReset();
+    // Restore default behavior for waitForDevice
+    mqttMock.waitForDevice.mockImplementation((device) => {
+      return new Promise((resolve) => {
+        if (mqttMock.deviceRegistry[device] === "online") return resolve();
+        mqttMock.once("network_change", (dev, status) => {
+          if (dev === device && status === "online") resolve();
+        });
+      });
+    });
+    // Restore default waitForBusy
+    mqttMock.waitForBusy.mockImplementation((timeoutMs = 30000) => {
+      return new Promise((resolve, reject) => {
+        if (mqttMock.hardwareStatus === "busy") return resolve();
+        const timer = setTimeout(() => {
+          cleanup();
+          reject(new Error("TIMEOUT: Pump did not become busy"));
+        }, timeoutMs);
+        const onStatus = (payload) => {
+          if (payload.status === "busy") {
+            cleanup();
+            resolve();
+          }
+        };
+        const onError = (err) => {
+          cleanup();
+          reject(err);
+        };
+        const cleanup = () => {
+          clearTimeout(timer);
+          mqttMock.removeListener("hardware_status", onStatus);
+          mqttMock.removeListener("hardware_error", onError);
+        };
+        mqttMock.on("hardware_status", onStatus);
+        mqttMock.on("hardware_error", onError);
+      });
+    });
+    // Reset Date.now and timers
     Date.now = realDateNow;
-    jest.restoreAllMocks();
+    jest.useRealTimers();
   });
 
   test("1. FLIGHT NOMINAL: Safely executes a flawless dose", async () => {
@@ -202,39 +246,79 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
   });
 
   test.skip("4. THE OVERFLOW SHIELD: Deducts volume accurately on power crash", async () => {
-    // Let the pump run for 2.5 seconds (200 mL/s → 500 mL)
-    mqttMock.waitForBusy.mockRejectedValueOnce(new Error("OFFLINE_INTERRUPT"));
-    // After 2.5 seconds, simulate disconnect
+    const flowRate = 200.0;
+    const runTimeSec = 2.5;
+
+    // First waitForDevice should succeed (device is online)
+    // We keep the default mock (resolves immediately because device is online)
+    // After the network drop, we will override it to reject
+
+    // First dose: waitForBusy succeeds once
+    mqttMock.waitForBusy.mockResolvedValueOnce();
+
+    // Simulate network drop after runTimeSec seconds
+    mqttMock.waitForIdle.mockImplementationOnce(async () => {
+      await jest.advanceTimersByTimeAsync(runTimeSec * 1000);
+      throw new Error("OFFLINE_INTERRUPT");
+    });
+
+    // After the drop, override waitForDevice to reject (simulate device never returns)
+    // But we must only apply this override AFTER the first call has already succeeded.
+    // We'll set it after a small delay, but easier: use a flag that changes after first call.
+    let firstCall = true;
+    mqttMock.waitForDevice.mockImplementation(
+      async (device, timeoutMs = 5000) => {
+        if (firstCall) {
+          firstCall = false;
+          // First call: device is online, resolve immediately
+          return;
+        } else {
+          // Subsequent calls: timeout after 5s
+          await new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("TIMEOUT")), timeoutMs),
+          );
+        }
+      },
+    );
+
     const dosePromise = engine.executePumpAndWait("Water", "dose_water", 1000);
-    await jest.advanceTimersByTimeAsync(510); // command sent, pump starts
-    await jest.advanceTimersByTimeAsync(2500); // pump runs
-    // Now network dies and never comes back
-    mqttMock.simulateNetworkDrop();
-    mqttMock.waitForDevice.mockImplementation(() => new Promise(() => {})); // never resolves
-    // The server will retry, but after MAX_RETRIES (3) it will exit the loop and throw.
-    // Actually the overflow shield deduction happens inside the catch block when reconnect fails.
-    // Let's advance time to allow all retries (3 * 15000 ms each)
-    await jest.advanceTimersByTimeAsync(45000);
-    // After retries exhausted, an error is thrown. We catch it and check that the error indicates failure.
+    await jest.advanceTimersByTimeAsync(500); // let first command be sent
+    await jest.advanceTimersByTimeAsync(20000); // allow retries
+
     await expect(dosePromise).rejects.toThrow(
       /Failed to dose Water after 3 retries/,
     );
-    // But the important part is that the server deducted the pumped volume and attempted to send a second command.
-    // Since waitForDevice never resolves, the second command may never be sent because the loop exits.
-    // This test is difficult to pass with the current design. We'll instead verify that the error is thrown.
-    // For coverage, we accept that the overflow shield mechanism is exercised when the reconnect fails.
-    expect(mqttMock.sendCommand).toHaveBeenCalledTimes(1); // only the first command, because no reconnection
+    // One command should have been sent (the first one)
+    expect(mqttMock.sendCommand).toHaveBeenCalledTimes(1);
   }, 60000);
 
   test.skip("5. MAX RETRIES EXCEEDED: Protects system if hardware completely fails", async () => {
+    // waitForBusy always rejects (hardware never responds)
     mqttMock.waitForBusy.mockRejectedValue(new Error("OFFLINE_INTERRUPT"));
-    mqttMock.waitForDevice.mockImplementation(() => new Promise(() => {})); // never reconnects
+
+    // waitForDevice: first call succeeds, subsequent calls timeout
+    let firstCall = true;
+    mqttMock.waitForDevice.mockImplementation(
+      async (device, timeoutMs = 5000) => {
+        if (firstCall) {
+          firstCall = false;
+          return; // resolve immediately
+        } else {
+          await new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("TIMEOUT")), timeoutMs),
+          );
+        }
+      },
+    );
+
     const dosePromise = engine.executePumpAndWait("Water", "dose_water", 1000);
-    await jest.advanceTimersByTimeAsync(510);
-    // Allow retries to happen (each retry has a 500ms delay, plus 3 attempts)
-    await jest.advanceTimersByTimeAsync(5000);
+    await jest.advanceTimersByTimeAsync(500);
+    await jest.advanceTimersByTimeAsync(20000);
+
     await expect(dosePromise).rejects.toThrow(
       /Failed to dose Water after 3 retries/,
     );
+    // Only one command sent (the first attempt)
+    expect(mqttMock.sendCommand).toHaveBeenCalledTimes(1);
   }, 10000);
 });
