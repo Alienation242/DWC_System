@@ -38,6 +38,11 @@ describe("MqttService", () => {
     }
   });
 
+  afterAll(() => {
+    jest.useRealTimers();
+    if (service) service.removeAllListeners();
+  });
+
   test("nextSeq increments sequence number", () => {
     expect(service.nextSeq()).toBe(1);
     expect(service.nextSeq()).toBe(2);

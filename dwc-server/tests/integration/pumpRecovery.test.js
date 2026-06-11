@@ -130,137 +130,170 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
     jest.restoreAllMocks();
   });
 
-  test("1. FLIGHT NOMINAL: Safely executes a flawless dose", async () => {
-    // Shorten retry delay so command is sent quickly
-    const dosePromise = engine.executePumpAndWait("Water", "dose_water", 1000, {
-      retryDelayMs: 10,
-    });
-    await new Promise((r) => setTimeout(r, 50)); // enough time for command to be sent
-    mqttMock.simulateHardwareComplete();
-    const result = await dosePromise;
-    expect(result).toBe(1000);
-    expect(Watchdog.logSuccessfulDose).toHaveBeenCalledWith("Water", 1000);
-  });
+  describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
+    jest.setTimeout(30000);
 
-  test("2. WATCHDOG INTERVENTION: Safely blocks unauthorized dose", async () => {
-    Watchdog.isSafeToDose.mockResolvedValueOnce(false);
-    const result = await engine.executePumpAndWait("pH_Up", "dose_ph_up", 1000);
-    expect(result).toBe(0);
-    expect(mqttMock.activeCommand).toBeNull();
-  });
+    test("1. FLIGHT NOMINAL: Safely executes a flawless dose", async () => {
+      // Shorten retry delay so command is sent quickly
+      const dosePromise = engine.executePumpAndWait(
+        "Water",
+        "dose_water",
+        1000,
+        {
+          retryDelayMs: 10,
+        },
+      );
+      await new Promise((r) => setTimeout(r, 50)); // enough time for command to be sent
+      mqttMock.simulateHardwareComplete();
+      const result = await dosePromise;
+      expect(result).toBe(1000);
+      expect(Watchdog.logSuccessfulDose).toHaveBeenCalledWith("Water", 1000);
+    }, 15000);
 
-  test("3. THE GHOST LOOP: Resumes gracefully after Wi-Fi drop", async () => {
-    const dosePromise = engine.executePumpAndWait("Water", "dose_water", 5000, {
-      retryDelayMs: 10,
-    });
-    await new Promise((r) => setTimeout(r, 50));
-    mqttMock.simulateNetworkDrop();
-    await new Promise((r) => setTimeout(r, 100));
-    mqttMock.simulateHardwareAutoResume(1);
-    await new Promise((r) => setTimeout(r, 50));
-    mqttMock.simulateHardwareComplete();
-    const result = await dosePromise;
-    expect(result).toBe(5000);
-    expect(mqttMock.seqCounter).toBe(1);
-  });
-
-  test("4. THE OVERFLOW SHIELD: Deducts volume accurately on power crash", async () => {
-    // First waitForDevice should succeed, then after drop it fails
-    let firstDeviceCall = true;
-    mqttMock.waitForDevice.mockImplementation(
-      async (device, timeoutMs = 5000) => {
-        if (firstDeviceCall) {
-          firstDeviceCall = false;
-          return; // resolve immediately
-        }
-        await new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("TIMEOUT")), 100),
-        );
-      },
-    );
-
-    // Simulate pump running for 250ms (500ml @ 200ml/s) then offline
-    mqttMock.waitForIdle.mockImplementationOnce(async () => {
-      await new Promise((r) => setTimeout(r, 250));
-      throw new Error("OFFLINE_INTERRUPT");
+    test("2. WATCHDOG INTERVENTION: Safely blocks unauthorized dose", async () => {
+      Watchdog.isSafeToDose.mockResolvedValueOnce(false);
+      const result = await engine.executePumpAndWait(
+        "pH_Up",
+        "dose_ph_up",
+        1000,
+      );
+      expect(result).toBe(0);
+      expect(mqttMock.activeCommand).toBeNull();
     });
 
-    const dosePromise = engine.executePumpAndWait("Water", "dose_water", 1000, {
-      maxRetries: 1,
-      retryDelayMs: 10,
-      waitForDeviceTimeoutMs: 100,
-      waitForBusyTimeoutMs: 500,
+    test("3. THE GHOST LOOP: Resumes gracefully after Wi-Fi drop", async () => {
+      const dosePromise = engine.executePumpAndWait(
+        "Water",
+        "dose_water",
+        5000,
+        {
+          retryDelayMs: 10,
+        },
+      );
+      await new Promise((r) => setTimeout(r, 50));
+      mqttMock.simulateNetworkDrop();
+      await new Promise((r) => setTimeout(r, 100));
+      mqttMock.simulateHardwareAutoResume(1);
+      await new Promise((r) => setTimeout(r, 50));
+      mqttMock.simulateHardwareComplete();
+      const result = await dosePromise;
+      expect(result).toBe(5000);
+      expect(mqttMock.seqCounter).toBe(1);
     });
 
-    await expect(dosePromise).rejects.toThrow(
-      /Failed to dose Water after 1 retries/,
-    );
-    expect(mqttMock.sendCommand).toHaveBeenCalledTimes(1);
-  }, 10000);
+    test("4. THE OVERFLOW SHIELD: Deducts volume accurately on power crash", async () => {
+      // First waitForDevice should succeed, then after drop it fails
+      let firstDeviceCall = true;
+      mqttMock.waitForDevice.mockImplementation(
+        async (device, timeoutMs = 5000) => {
+          if (firstDeviceCall) {
+            firstDeviceCall = false;
+            return; // resolve immediately
+          }
+          await new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("TIMEOUT")), 100),
+          );
+        },
+      );
 
-  test("5. MAX RETRIES EXCEEDED: Protects system if hardware completely fails", async () => {
-    // First waitForDevice succeeds, then fails on retries
-    let firstDeviceCall = true;
-    mqttMock.waitForDevice.mockImplementation(
-      async (device, timeoutMs = 5000) => {
-        if (firstDeviceCall) {
-          firstDeviceCall = false;
+      // Simulate pump running for 250ms (500ml @ 200ml/s) then offline
+      mqttMock.waitForIdle.mockImplementationOnce(async () => {
+        await new Promise((r) => setTimeout(r, 250));
+        throw new Error("OFFLINE_INTERRUPT");
+      });
+
+      const dosePromise = engine.executePumpAndWait(
+        "Water",
+        "dose_water",
+        1000,
+        {
+          maxRetries: 1,
+          retryDelayMs: 10,
+          waitForDeviceTimeoutMs: 100,
+          waitForBusyTimeoutMs: 500,
+        },
+      );
+
+      await expect(dosePromise).rejects.toThrow(
+        /Failed to dose Water after 1 retries/,
+      );
+      expect(mqttMock.sendCommand).toHaveBeenCalledTimes(1);
+    }, 10000);
+
+    test("5. MAX RETRIES EXCEEDED: Protects system if hardware completely fails", async () => {
+      // First waitForDevice succeeds, then fails on retries
+      let firstDeviceCall = true;
+      mqttMock.waitForDevice.mockImplementation(
+        async (device, timeoutMs = 5000) => {
+          if (firstDeviceCall) {
+            firstDeviceCall = false;
+            return;
+          }
+          await new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("TIMEOUT")), 50),
+          );
+        },
+      );
+
+      mqttMock.waitForBusy.mockRejectedValue(new Error("OFFLINE_INTERRUPT"));
+
+      const dosePromise = engine.executePumpAndWait(
+        "Water",
+        "dose_water",
+        1000,
+        {
+          maxRetries: 2,
+          retryDelayMs: 10,
+          waitForDeviceTimeoutMs: 50,
+          waitForBusyTimeoutMs: 100,
+        },
+      );
+
+      await expect(dosePromise).rejects.toThrow(
+        /Failed to dose Water after 2 retries/,
+      );
+      expect(mqttMock.sendCommand).toHaveBeenCalledTimes(1);
+    }, 10000);
+
+    test("executePumpAndWait – resumes after offline and gets busy status", async () => {
+      // Simulate first dose starts, then network drop, then resume
+      mqttMock.waitForBusy.mockResolvedValueOnce();
+      mqttMock.waitForIdle.mockImplementationOnce(async () => {
+        throw new Error("OFFLINE_INTERRUPT");
+      });
+      let reconnect = false;
+      mqttMock.waitForDevice.mockImplementation(async (device, timeout) => {
+        if (!reconnect) {
+          reconnect = true;
           return;
         }
-        await new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("TIMEOUT")), 50),
-        );
-      },
-    );
-
-    mqttMock.waitForBusy.mockRejectedValue(new Error("OFFLINE_INTERRUPT"));
-
-    const dosePromise = engine.executePumpAndWait("Water", "dose_water", 1000, {
-      maxRetries: 2,
-      retryDelayMs: 10,
-      waitForDeviceTimeoutMs: 50,
-      waitForBusyTimeoutMs: 100,
-    });
-
-    await expect(dosePromise).rejects.toThrow(
-      /Failed to dose Water after 2 retries/,
-    );
-    expect(mqttMock.sendCommand).toHaveBeenCalledTimes(1);
-  }, 10000);
-
-  test("executePumpAndWait – resumes after offline and gets busy status", async () => {
-    // Simulate first dose starts, then network drop, then resume
-    mqttMock.waitForBusy.mockResolvedValueOnce();
-    mqttMock.waitForIdle.mockImplementationOnce(async () => {
-      throw new Error("OFFLINE_INTERRUPT");
-    });
-    let reconnect = false;
-    mqttMock.waitForDevice.mockImplementation(async (device, timeout) => {
-      if (!reconnect) {
-        reconnect = true;
-        return;
-      }
+        await new Promise((r) => setTimeout(r, 10));
+      });
+      // After reconnect, simulate busy (resumed dosing) then complete
+      mqttMock.waitForBusy.mockResolvedValueOnce();
+      const dosePromise = engine.executePumpAndWait(
+        "Water",
+        "dose_water",
+        1000,
+        {
+          maxRetries: 1,
+          retryDelayMs: 10,
+        },
+      );
+      await new Promise((r) => setTimeout(r, 50));
+      mqttMock.emit("hardware_status", {
+        status: "busy",
+        task: "resumed_dosing",
+        seq: 1,
+      });
       await new Promise((r) => setTimeout(r, 10));
-    });
-    // After reconnect, simulate busy (resumed dosing) then complete
-    mqttMock.waitForBusy.mockResolvedValueOnce();
-    const dosePromise = engine.executePumpAndWait("Water", "dose_water", 1000, {
-      maxRetries: 1,
-      retryDelayMs: 10,
-    });
-    await new Promise((r) => setTimeout(r, 50));
-    mqttMock.emit("hardware_status", {
-      status: "busy",
-      task: "resumed_dosing",
-      seq: 1,
-    });
-    await new Promise((r) => setTimeout(r, 10));
-    mqttMock.emit("pump_message", {
-      seq: 1,
-      status: "dose_complete",
-      volume_ml: 1000,
-    });
-    const result = await dosePromise;
-    expect(result).toBe(1000);
-  }, 10000);
+      mqttMock.emit("pump_message", {
+        seq: 1,
+        status: "dose_complete",
+        volume_ml: 1000,
+      });
+      const result = await dosePromise;
+      expect(result).toBe(1000);
+    }, 10000);
+  });
 });

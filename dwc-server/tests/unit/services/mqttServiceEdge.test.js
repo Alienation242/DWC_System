@@ -35,6 +35,11 @@ describe("MqttService Edge Cases", () => {
     if (service) service.removeAllListeners();
   });
 
+  afterAll(() => {
+    jest.useRealTimers();
+    if (service) service.removeAllListeners();
+  });
+
   test("waitForDevice rejects on timeout", async () => {
     service.deviceRegistry.pump_node_1 = "offline";
     await expect(service.waitForDevice("pump_node_1", 10)).rejects.toThrow(
