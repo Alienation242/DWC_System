@@ -8,7 +8,12 @@ describe("Server Startup Logic", () => {
     jest.spyOn(console, "log").mockImplementation(() => {});
     jest.spyOn(console, "warn").mockImplementation(() => {});
   });
+
   afterEach(() => jest.restoreAllMocks());
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
 
   test("autoSeed creates missing SystemState", async () => {
     mockPrisma.systemState.findUnique.mockResolvedValue(null);

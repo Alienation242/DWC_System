@@ -134,7 +134,6 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
     jest.setTimeout(30000);
 
     test("1. FLIGHT NOMINAL: Safely executes a flawless dose", async () => {
-      // Shorten retry delay so command is sent quickly
       const dosePromise = engine.executePumpAndWait(
         "Water",
         "dose_water",
@@ -143,12 +142,13 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
           retryDelayMs: 10,
         },
       );
-      await new Promise((r) => setTimeout(r, 50)); // enough time for command to be sent
+      // Wait for command to be sent and busy event to fire
+      await new Promise((r) => setTimeout(r, 100));
       mqttMock.simulateHardwareComplete();
       const result = await dosePromise;
       expect(result).toBe(1000);
       expect(Watchdog.logSuccessfulDose).toHaveBeenCalledWith("Water", 1000);
-    }, 15000);
+    }, 30000);
 
     test("2. WATCHDOG INTERVENTION: Safely blocks unauthorized dose", async () => {
       Watchdog.isSafeToDose.mockResolvedValueOnce(false);

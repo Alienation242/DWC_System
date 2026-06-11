@@ -256,4 +256,93 @@ describe("RecipeEngine - Edge Cases & Uncovered Branches", () => {
       /Failed to dose Water after 2 retries/,
     );
   });
+
+  test("_loadTickConfigs catch block when system.json read fails", async () => {
+    const originalReadFile = fs.readFile;
+    // Override readFile to reject for system.json, but succeed for others
+    fs.readFile = jest.fn(async (path) => {
+      if (path.includes("system.json")) throw new Error("ENOENT");
+      if (path.includes("nutrient_profile.json"))
+        return JSON.stringify({ carrierVolumeMl: 500 });
+      if (path.includes("default.json"))
+        return JSON.stringify({ name: "test" });
+      return originalReadFile(path);
+    });
+    const systemState = { currentProfilePath: null };
+    const result = await engine._loadTickConfigs(systemState);
+    // The catch block sets maxBatchMl to default 5000
+    expect(result.maxBatchMl).toBe(5000);
+    fs.readFile = originalReadFile;
+  });
+
+  // Ensure _handleEcExcess dilutionMl <= 50 branch (lines 286-288) is covered
+  test("_handleEcExcess returns false when dilutionMl exactly 50", async () => {
+    // sysVol = 0.1, livePPM=1000, targetPPM=500 -> dilution = 0.1*1000*(2-1)=100ml, but maxBatchMl=50 clamps to 50.
+    const result = await engine._handleEcExcess(1000, 500, 0.1, 50);
+    expect(result).toBe(false);
+    // Also test exactly 0 dilution
+    const result2 = await engine._handleEcExcess(500, 500, 18, 5000);
+    expect(result2).toBe(false);
+  });
+
+  // Ensure _handleEcDeficit totalNeeded <= 1.0 branch (line 433) is covered with different values
+  test("_handleEcDeficit returns false when totalNeeded = 0.5", async () => {
+    jest.spyOn(engine, "calculateDeficit").mockReturnValue({
+      cal: 0.2,
+      gro: 0.1,
+      micro: 0.1,
+      bloom: 0.1,
+      fin: 0,
+    });
+    const spy = jest.spyOn(engine, "executePumpAndWait");
+    const result = await engine._handleEcDeficit(
+      400,
+      410,
+      "VEGETATIVE",
+      50,
+      18,
+      { carrierVolumeMl: 500 },
+      5000,
+    );
+    expect(spy).not.toHaveBeenCalled();
+    expect(result).toBe(false);
+  });
+
+  // Ensure _handlePhCorrection watchdog blocked branch (lines 544-545) is covered
+  test("_handlePhCorrection watchdog blocked returns false", async () => {
+    Watchdog.isSafeToDose.mockResolvedValueOnce(false);
+    const result = await engine._handlePhCorrection(7.2);
+    expect(result).toBe(false);
+  });
+
+  // Ensure executeTick catch block (lines 633-637, 640-641) is covered by forcing an error after telemetry and systemState exist
+  test("executeTick catch block handles error and sends stop command", async () => {
+    // Setup mocks to make executeTick proceed past early returns
+    const mockTelemetry = {
+      realEC: 800,
+      realPH: 5.8,
+      isTankEmpty: false,
+      isTankOverflowing: false,
+    };
+    const mockSystemState = {
+      currentDay: 50,
+      sysVol: 18,
+      currentProfilePath: null,
+    };
+
+    mockPrisma.telemetryLog.findFirst.mockResolvedValue(mockTelemetry);
+    mockPrisma.systemState.findFirst.mockResolvedValue(mockSystemState);
+
+    // Force an error inside the try block (after _loadTickConfigs succeeds, but before returning)
+    // For example, mock getDynamicTarget to throw
+    jest.spyOn(engine, "getDynamicTarget").mockImplementation(() => {
+      throw new Error("Dynamic target error");
+    });
+
+    const stopSpy = jest.spyOn(engine.mqtt, "sendCommand");
+    await engine.executeTick();
+
+    expect(stopSpy).toHaveBeenCalledWith("stop", 0, "None", expect.any(Number));
+    expect(engine.isTicking).toBe(false);
+  });
 });

@@ -38,6 +38,7 @@ describe("MqttService Edge Cases", () => {
   afterAll(() => {
     jest.useRealTimers();
     if (service) service.removeAllListeners();
+    if (service && service.client && service.client.end) service.client.end();
   });
 
   test("waitForDevice rejects on timeout", async () => {
