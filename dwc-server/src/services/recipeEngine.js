@@ -29,7 +29,174 @@ class RecipeEngine {
     this.submersibleFlowMlPerSec = null;
   }
 
-  // ---------- Pure helpers ----------
+  // ---------- Pure helpers (refactored for testability) ----------
+  _calculateDilutionMl(sysVol, livePPM, targetPPM, maxBatchMl) {
+    if (targetPPM <= 0) return Math.min(sysVol * 1000, maxBatchMl);
+    const dilution = sysVol * 1000 * (livePPM / targetPPM - 1);
+    return Math.min(Math.max(0, dilution), maxBatchMl);
+  }
+
+  _isPpHErrorSignificant(livePH, deadband = 0.2) {
+    return Math.abs(livePH - TARGET_PH) > deadband;
+  }
+
+  _calculatePHDoseMl(pHerror) {
+    return Math.min(5.0, Math.max(1.0, Math.abs(pHerror) * 5.0));
+  }
+
+  async _loadTickConfigs(systemState) {
+    const strainProfilePath =
+      systemState.currentProfilePath ||
+      path.join(process.cwd(), "src/recipes/default.json");
+    const rawStrain = await fs.readFile(strainProfilePath, "utf8");
+    const strainProfile = JSON.parse(rawStrain);
+
+    const rawNutrient = await fs.readFile(NUTRIENT_PROFILE_PATH, "utf8");
+    const nutrientConfig = JSON.parse(rawNutrient);
+
+    const rawSystem = await fs
+      .readFile(SYSTEM_CONFIG_PATH, "utf8")
+      .catch(() => '{"mixing":{"maxMixingTankVolumeMl":5000}}');
+    const systemConfig = JSON.parse(rawSystem);
+    const maxBatchMl = systemConfig.mixing?.maxMixingTankVolumeMl || 5000;
+
+    return { strainProfile, nutrientConfig, maxBatchMl };
+  }
+
+  async _handleEcExcess(livePPM, targetPPM, sysVol, maxBatchMl) {
+    const dilutionMl = this._calculateDilutionMl(
+      sysVol,
+      livePPM,
+      targetPPM,
+      maxBatchMl,
+    );
+    if (dilutionMl <= 50) return false;
+    console.log(`🚀 Dilution batch: ${dilutionMl.toFixed(0)}ml water`);
+    const actualWater = await this.executePumpAndWait(
+      "Water",
+      "dose_water",
+      dilutionMl,
+    );
+    if (actualWater > 0) {
+      await this._deliverToPot(actualWater * 1.2);
+      console.log(`✅ Dilution complete`);
+      return true;
+    }
+    return false;
+  }
+
+  async _handleEcDeficit(
+    livePPM,
+    targetPPM,
+    stage,
+    currentDay,
+    sysVol,
+    nutrientConfig,
+    maxBatchMl,
+  ) {
+    const deficitPPM = targetPPM - livePPM;
+    console.log(`📉 EC Deficit -${deficitPPM.toFixed(0)} PPM`);
+    const rawDose = this.calculateDeficit(
+      targetPPM,
+      deficitPPM,
+      stage,
+      currentDay,
+      sysVol,
+    );
+    const totalNeeded =
+      rawDose.cal + rawDose.gro + rawDose.micro + rawDose.bloom + rawDose.fin;
+    if (totalNeeded <= 1.0) {
+      console.log("Deficit too small, skipping");
+      return false;
+    }
+
+    const MAX_NUT_PER_TICK = 15.0;
+    let nutrientScale = 1.0;
+    let batchScale = 1.0;
+
+    const highestNut = Math.max(
+      rawDose.cal,
+      rawDose.micro,
+      rawDose.gro,
+      rawDose.bloom,
+      rawDose.fin,
+    );
+    if (highestNut > MAX_NUT_PER_TICK)
+      nutrientScale = MAX_NUT_PER_TICK / highestNut;
+
+    const desiredCarrier = nutrientConfig.carrierVolumeMl;
+    const theoreticalNutVol =
+      (rawDose.cal +
+        rawDose.micro +
+        rawDose.gro +
+        rawDose.bloom +
+        rawDose.fin) *
+      nutrientScale;
+    const theoreticalTotal = desiredCarrier + theoreticalNutVol;
+    if (theoreticalTotal > maxBatchMl)
+      batchScale = maxBatchMl / theoreticalTotal;
+
+    const finalCarrier = desiredCarrier * batchScale;
+    const finalNutScale = nutrientScale * batchScale;
+
+    const dose = {
+      cal: rawDose.cal * finalNutScale,
+      micro: rawDose.micro * finalNutScale,
+      gro: rawDose.gro * finalNutScale,
+      bloom: rawDose.bloom * finalNutScale,
+      fin: rawDose.fin * finalNutScale,
+    };
+
+    console.log(`🚀 Nutrient batch: carrier ${finalCarrier.toFixed(0)}ml`);
+    await this.executePumpAndWait(
+      nutrientConfig.carrierFluid,
+      "dose_water",
+      finalCarrier,
+    );
+
+    let totalInjected = 0;
+    const pumpMap = {
+      CalMag: { topic: "dose_calmag", amount: dose.cal },
+      Micro: { topic: "dose_micro", amount: dose.micro },
+      Gro: { topic: "dose_gro_fin_relay", amount: dose.gro },
+      Bloom: { topic: "dose_bloom", amount: dose.bloom },
+      Finisher: { topic: "dose_gro_fin_relay", amount: dose.fin },
+    };
+    for (const nut of nutrientConfig.mixingSequence) {
+      const p = pumpMap[nut];
+      if (p && p.amount > 0.5) {
+        totalInjected += await this.executePumpAndWait(nut, p.topic, p.amount);
+      }
+    }
+
+    const totalVolume = finalCarrier + totalInjected;
+    await this._deliverToPot(totalVolume * 1.2);
+    console.log(`✅ Nutrient batch complete`);
+    return true;
+  }
+
+  async _handlePhCorrection(livePH) {
+    const pHerror = livePH - TARGET_PH;
+    if (!this._isPpHErrorSignificant(livePH)) return false;
+    const type = pHerror > 0 ? "pH_Down" : "pH_Up";
+    const topic = pHerror > 0 ? "dose_ph_down" : "dose_ph_up";
+    const doseMl = this._calculatePHDoseMl(pHerror);
+    console.log(
+      `🚀 pH correction: ${type} ${doseMl.toFixed(1)}ml (error = ${pHerror.toFixed(2)})`,
+    );
+
+    if (!(await Watchdog.isSafeToDose(type, doseMl))) {
+      console.log(`⏭️ pH correction blocked by watchdog`);
+      return false;
+    }
+    await this.executePumpAndWait("Water", "dose_water", 250.0);
+    const actualAcid = await this.executePumpAndWait(type, topic, doseMl);
+    await this._deliverToPot((250 + actualAcid) * 1.2);
+    console.log(`✅ pH correction complete`);
+    return true;
+  }
+
+  // ---------- Existing pure helpers (unchanged) ----------
   resolveCurve(param, progress) {
     if (!param) return 0;
     progress = Math.max(0, Math.min(1, progress));
@@ -160,7 +327,7 @@ class RecipeEngine {
     );
     const effectivePPFD = livePPFD == null ? targetPpfd : livePPFD;
     const excessLight = Math.max(0, effectivePPFD - targetPpfd);
-    const maxBoost = 150; // maximum PPM increase from light
+    const maxBoost = 150;
     const dynamicTargetPpm =
       floorPpm + Math.min(maxBoost, excessLight * lightMult);
 
@@ -230,12 +397,12 @@ class RecipeEngine {
       this.submersibleFlowMlPerSec = config.submersible_ml_per_sec;
     } catch (err) {
       console.warn("⚠️ Could not load hardware.json, using defaults");
-      this.peristalticFlowMlPerSec = 2.0; // safe fallback
+      this.peristalticFlowMlPerSec = 2.0;
       this.submersibleFlowMlPerSec = 50.0;
     }
   }
 
-  // ---------- Core delivery helper (with retry & overflow shield) ----------
+  // ---------- Core delivery helper ----------
   async _deliverToPot(volumeMl, targetPot = "A") {
     await this._ensureHardwareConfig();
     if (volumeMl <= 0.5) return;
@@ -418,7 +585,7 @@ class RecipeEngine {
     });
   }
 
-  // ---------- Main tick ----------
+  // ---------- Main tick (refactored to use helpers) ----------
   async executeTick() {
     if (this.isTicking) return;
     this.isTicking = true;
@@ -438,21 +605,8 @@ class RecipeEngine {
       const systemState = await prisma.systemState.findFirst();
       if (!systemState) throw new Error("SystemState missing");
 
-      // --- Load all configuration files once ---
-      const strainProfilePath =
-        systemState.currentProfilePath ||
-        path.join(process.cwd(), "src/recipes/default.json");
-      const rawStrain = await fs.readFile(strainProfilePath, "utf8");
-      const strainProfile = JSON.parse(rawStrain);
-
-      const rawNutrient = await fs.readFile(NUTRIENT_PROFILE_PATH, "utf8");
-      const nutrientConfig = JSON.parse(rawNutrient);
-
-      const rawSystem = await fs
-        .readFile(SYSTEM_CONFIG_PATH, "utf8")
-        .catch(() => '{"mixing":{"maxMixingTankVolumeMl":5000}}');
-      const systemConfig = JSON.parse(rawSystem);
-      const MAX_BATCH_ML = systemConfig.mixing?.maxMixingTankVolumeMl || 5000;
+      const { strainProfile, nutrientConfig, maxBatchMl } =
+        await this._loadTickConfigs(systemState);
 
       const currentDay = systemState.currentDay || 1;
       const sysVol = systemState.sysVol || 18.0;
@@ -465,8 +619,7 @@ class RecipeEngine {
       const targetPPM = dynamicData.targetPPM;
       const stage = dynamicData.phase;
 
-      const liveEC = telemetry.realEC;
-      const livePPM = liveEC * 0.5;
+      const livePPM = telemetry.realEC * 0.5;
       const livePH = telemetry.realPH;
 
       console.log(
@@ -476,165 +629,39 @@ class RecipeEngine {
         `🎯 Target | Day: ${currentDay} | Phase: ${stage} | PPM: ${targetPPM.toFixed(0)}`,
       );
 
-      const deadbandPPM = 20;
-
       if (telemetry.isTankOverflowing) {
         console.error(
-          "💥 CRITICAL: Tank overflow detected! Stopping all pumps and aborting tick.",
+          "💥 CRITICAL: Tank overflow detected! Stopping all pumps.",
         );
         await this.mqtt.sendCommand("stop", 0, "None", this.mqtt.nextSeq());
-        this.isTicking = false;
         return;
       }
       if (telemetry.isTankEmpty) {
-        console.warn(
-          "⚠️ Tank empty – skipping any water dosing (dilution/pH carrier).",
-        );
-        // You can still allow pH correction? No, because that requires water carrier.
-        // We'll just skip the entire tick to be safe.
-        this.isTicking = false;
+        console.warn("⚠️ Tank empty – skipping tick.");
         return;
       }
 
-      // ---------- 1. EC Excess (Dilution) ----------
+      const deadbandPPM = 20;
       if (livePPM > targetPPM + deadbandPPM) {
-        const excessPPM = livePPM - targetPPM;
-        console.log(`📈 EC Excess +${excessPPM.toFixed(0)} PPM – diluting`);
-        const dilutionMl = Math.min(
-          sysVol * 1000 * (livePPM / targetPPM - 1),
-          MAX_BATCH_ML,
-        );
-        if (dilutionMl > 50) {
-          console.log(`🚀 Dilution batch: ${dilutionMl.toFixed(0)}ml water`);
-          const actualWater = await this.executePumpAndWait(
-            "Water",
-            "dose_water",
-            dilutionMl,
-          );
-          if (actualWater > 0) {
-            await this._deliverToPot(actualWater * 1.2);
-            console.log(`✅ Dilution complete`);
-            this.isTicking = false;
-            return;
-          }
-        }
-      }
-      // ---------- 2. EC Deficit (Nutrients) ----------
-      else if (livePPM < targetPPM - deadbandPPM) {
-        const deficitPPM = targetPPM - livePPM;
-        console.log(`📉 EC Deficit -${deficitPPM.toFixed(0)} PPM`);
-
-        const rawDose = this.calculateDeficit(
-          targetPPM,
-          deficitPPM,
-          stage,
-          currentDay,
-          sysVol,
-        );
-        const totalNeeded =
-          rawDose.cal +
-          rawDose.gro +
-          rawDose.micro +
-          rawDose.bloom +
-          rawDose.fin;
-        if (totalNeeded <= 1.0) {
-          console.log("Deficit too small, skipping");
-          this.isTicking = false;
+        if (await this._handleEcExcess(livePPM, targetPPM, sysVol, maxBatchMl))
           return;
-        }
-
-        const MAX_NUT_PER_TICK = 15.0;
-        let nutrientScale = 1.0;
-        let batchScale = 1.0;
-
-        const highestNut = Math.max(
-          rawDose.cal,
-          rawDose.micro,
-          rawDose.gro,
-          rawDose.bloom,
-          rawDose.fin,
-        );
-        if (highestNut > MAX_NUT_PER_TICK)
-          nutrientScale = MAX_NUT_PER_TICK / highestNut;
-
-        const desiredCarrier = nutrientConfig.carrierVolumeMl;
-        const theoreticalNutVol =
-          (rawDose.cal +
-            rawDose.micro +
-            rawDose.gro +
-            rawDose.bloom +
-            rawDose.fin) *
-          nutrientScale;
-        const theoreticalTotal = desiredCarrier + theoreticalNutVol;
-        if (theoreticalTotal > MAX_BATCH_ML)
-          batchScale = MAX_BATCH_ML / theoreticalTotal;
-
-        const finalCarrier = desiredCarrier * batchScale;
-        const finalNutScale = nutrientScale * batchScale;
-
-        const dose = {
-          cal: rawDose.cal * finalNutScale,
-          micro: rawDose.micro * finalNutScale,
-          gro: rawDose.gro * finalNutScale,
-          bloom: rawDose.bloom * finalNutScale,
-          fin: rawDose.fin * finalNutScale,
-        };
-
-        console.log(`🚀 Nutrient batch: carrier ${finalCarrier.toFixed(0)}ml`);
-        await this.executePumpAndWait(
-          nutrientConfig.carrierFluid,
-          "dose_water",
-          finalCarrier,
-        );
-
-        let totalInjected = 0;
-        const pumpMap = {
-          CalMag: { topic: "dose_calmag", amount: dose.cal },
-          Micro: { topic: "dose_micro", amount: dose.micro },
-          Gro: { topic: "dose_gro_fin_relay", amount: dose.gro },
-          Bloom: { topic: "dose_bloom", amount: dose.bloom },
-          Finisher: { topic: "dose_gro_fin_relay", amount: dose.fin },
-        };
-        for (const nut of nutrientConfig.mixingSequence) {
-          const p = pumpMap[nut];
-          if (p && p.amount > 0.5) {
-            totalInjected += await this.executePumpAndWait(
-              nut,
-              p.topic,
-              p.amount,
-            );
-          }
-        }
-
-        const totalVolume = finalCarrier + totalInjected;
-        await this._deliverToPot(totalVolume * 1.2);
-        console.log(`✅ Nutrient batch complete`);
-        this.isTicking = false;
-        return;
+      } else if (livePPM < targetPPM - deadbandPPM) {
+        if (
+          await this._handleEcDeficit(
+            livePPM,
+            targetPPM,
+            stage,
+            currentDay,
+            sysVol,
+            nutrientConfig,
+            maxBatchMl,
+          )
+        )
+          return;
       }
 
-      // ---------- 3. pH Correction (proportional) ----------
-      const pHerror = livePH - TARGET_PH;
-      if (Math.abs(pHerror) > 0.2) {
-        const type = pHerror > 0 ? "pH_Down" : "pH_Up";
-        const topic = pHerror > 0 ? "dose_ph_down" : "dose_ph_up";
-        let doseMl = Math.min(5.0, Math.max(1.0, Math.abs(pHerror) * 5.0));
-        console.log(
-          `🚀 pH correction: ${type} ${doseMl.toFixed(1)}ml (error = ${pHerror.toFixed(2)})`,
-        );
-
-        if (await Watchdog.isSafeToDose(type, doseMl)) {
-          await this.executePumpAndWait("Water", "dose_water", 250.0);
-          const actualAcid = await this.executePumpAndWait(type, topic, doseMl);
-          const totalVol = 250 + actualAcid;
-          await this._deliverToPot(totalVol * 1.2);
-          console.log(`✅ pH correction complete`);
-        } else {
-          console.log(`⏭️ pH correction blocked by watchdog`);
-        }
-      } else {
-        console.log(`✅ System stable`);
-      }
+      await this._handlePhCorrection(livePH);
+      console.log(`✅ System stable`);
     } catch (err) {
       console.error("❌ Recipe Engine Error:", err);
       this.mqtt.sendCommand("stop", 0, "None", this.mqtt.nextSeq());
