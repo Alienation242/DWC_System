@@ -25,6 +25,11 @@ import { ApiService } from '../services/api.service';
   ],
 })
 export class ManualComponent {
+  waterVol = 500;
+  phDownVol = 2;
+  deliverTarget = 'A';
+  deliverVol = 1000;
+
   constructor(
     private api: ApiService,
     private snack: MatSnackBar,
@@ -33,19 +38,23 @@ export class ManualComponent {
   emergencyStop() {
     this.api.stopAll().subscribe(() => this.snack.open('Emergency stop sent', 'OK'));
   }
-  doseWater(ml: number) {
+
+  doseWater() {
     this.api
-      .dose('Water', 'dose_water', ml)
+      .dose('Water', 'dose_water', this.waterVol)
       .subscribe((r) => this.snack.open(`Dosed ${r.dosedMl} ml`, 'OK'));
   }
-  dosePhDown(ml: number) {
+
+  dosePhDown() {
     this.api
-      .dose('pH_Down', 'dose_ph_down', ml)
+      .dose('pH_Down', 'dose_ph_down', this.phDownVol)
       .subscribe((r) => this.snack.open(`Dosed ${r.dosedMl} ml pH Down`, 'OK'));
   }
-  deliver(target: string, vol: number) {
-    this.api.deliver(target, vol).subscribe({
-      next: () => this.snack.open(`Delivered ${vol} ml to pot ${target}`, 'OK'),
+
+  deliver() {
+    this.api.deliver(this.deliverTarget, this.deliverVol).subscribe({
+      next: () =>
+        this.snack.open(`Delivered ${this.deliverVol} ml to pot ${this.deliverTarget}`, 'OK'),
       error: (err) => this.snack.open(`Error: ${err.error?.error || err.message}`, 'Close'),
     });
   }
