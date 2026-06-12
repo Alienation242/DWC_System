@@ -193,6 +193,61 @@ app.post("/api/system/override", async (req, res) => {
   res.json({ automationMode: state.automationMode });
 });
 
+app.get("/api/system/target", async (req, res) => {
+  try {
+    const systemState = await prisma.systemState.findFirst();
+    if (!systemState) return res.status(404).json({ error: "No system state" });
+    const { strainProfile } = await engine._loadTickConfigs(systemState);
+    const dynamic = engine.getDynamicTarget(
+      strainProfile,
+      systemState.currentDay || 1,
+      null,
+    );
+    res.json({ targetPPM: dynamic.targetPPM, phase: dynamic.phase });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// MANUAL CONTROL ENDPOINTS
+// ==========================================
+app.post("/api/manual/stop", async (req, res) => {
+  try {
+    const seq = hardwareComms.nextSeq();
+    hardwareComms.sendCommand("stop", 0, "None", seq);
+    res.json({ success: true, message: "Emergency stop sent" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/manual/dose", async (req, res) => {
+  const { pumpName, actionStr, ml } = req.body;
+  if (!pumpName || !actionStr || !ml) {
+    return res.status(400).json({ error: "Missing pumpName, actionStr or ml" });
+  }
+  try {
+    const dosed = await engine.executePumpAndWait(pumpName, actionStr, ml);
+    res.json({ success: true, dosedMl: dosed });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/manual/deliver", async (req, res) => {
+  const { target, volumeMl } = req.body;
+  if (!target || !volumeMl) {
+    return res.status(400).json({ error: "Missing target or volumeMl" });
+  }
+  try {
+    await engine._deliverToPot(volumeMl, target);
+    res.json({ success: true, message: "Delivery completed" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ------------------ WebSockets ------------------
 const io = new Server(server, { cors: { origin: "*" } });
 io.on("connection", (socket) => {
