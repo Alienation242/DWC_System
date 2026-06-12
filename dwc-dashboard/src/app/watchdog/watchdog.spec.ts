@@ -1,18 +1,16 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { Watchdog } from './watchdog';
-
+import { WatchdogComponent } from './watchdog';
 describe('Watchdog', () => {
-  let component: Watchdog;
-  let fixture: ComponentFixture<Watchdog>;
+  let component: WatchdogComponent;
+  let fixture: ComponentFixture<WatchdogComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [Watchdog]
-    })
-    .compileComponents();
+      declarations: [WatchdogComponent],
+    }).compileComponents();
 
-    fixture = TestBed.createComponent(Watchdog);
+    fixture = TestBed.createComponent(WatchdogComponent);
     component = fixture.componentInstance;
     await fixture.whenStable();
   });

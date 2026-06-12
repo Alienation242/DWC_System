@@ -1,18 +1,16 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { Nutrient } from './nutrient';
-
+import { NutrientComponent } from './nutrient';
 describe('Nutrient', () => {
-  let component: Nutrient;
-  let fixture: ComponentFixture<Nutrient>;
+  let component: NutrientComponent;
+  let fixture: ComponentFixture<NutrientComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [Nutrient]
-    })
-    .compileComponents();
+      declarations: [NutrientComponent],
+    }).compileComponents();
 
-    fixture = TestBed.createComponent(Nutrient);
+    fixture = TestBed.createComponent(NutrientComponent);
     component = fixture.componentInstance;
     await fixture.whenStable();
   });

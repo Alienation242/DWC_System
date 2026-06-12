@@ -1,24 +1,18 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
 import { SocketService, Telemetry } from '../services/socket.service';
 import { ApiService } from '../services/api.service';
 import { Subscription } from 'rxjs';
-import { MatCard, MatCardTitle, MatCardContent } from '@angular/material/card';
-import { MatIcon } from '@angular/material/icon';
-import { MatButton } from '@angular/material/button';
-import { DecimalPipe } from '@angular/common';
 
 @Component({
-    selector: 'app-telemetry',
-    templateUrl: './telemetry.html',
-    styleUrls: ['./telemetry.css'],
-    imports: [
-        MatCard,
-        MatCardTitle,
-        MatCardContent,
-        MatIcon,
-        MatButton,
-        DecimalPipe,
-    ],
+  selector: 'app-telemetry',
+  standalone: true,
+  templateUrl: './telemetry.html',
+  styleUrls: ['./telemetry.css'],
+  imports: [CommonModule, MatCardModule, MatIconModule, MatButtonModule],
 })
 export class TelemetryComponent implements OnInit, OnDestroy {
   telemetry: Telemetry | null = null;

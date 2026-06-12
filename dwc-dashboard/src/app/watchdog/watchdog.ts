@@ -1,34 +1,26 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
-import { ApiService, WatchdogConfig } from '../services/api.service';
-import { MatSnackBar } from '@angular/material/snack-bar';
-import { MatCard, MatCardTitle, MatCardContent } from '@angular/material/card';
-import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from '@angular/material/table';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatSlideToggle } from '@angular/material/slide-toggle';
-import { MatButton } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatTableModule } from '@angular/material/table';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatButtonModule } from '@angular/material/button';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { ApiService, WatchdogConfig } from '../services/api.service';
 
 @Component({
-    selector: 'app-watchdog',
-    templateUrl: './watchdog.html',
-    styleUrls: ['./watchdog.css'],
-    imports: [
-        MatCard,
-        MatCardTitle,
-        MatCardContent,
-        MatTable,
-        MatColumnDef,
-        MatHeaderCellDef,
-        MatHeaderCell,
-        MatCellDef,
-        MatCell,
-        FormsModule,
-        MatSlideToggle,
-        MatButton,
-        MatHeaderRowDef,
-        MatHeaderRow,
-        MatRowDef,
-        MatRow,
-    ],
+  selector: 'app-watchdog',
+  standalone: true,
+  templateUrl: './watchdog.html',
+  styleUrls: ['./watchdog.css'],
+  imports: [
+    CommonModule,
+    FormsModule,
+    MatCardModule,
+    MatTableModule,
+    MatSlideToggleModule,
+    MatButtonModule,
+  ],
 })
 export class WatchdogComponent implements OnInit {
   configs: WatchdogConfig[] = [];

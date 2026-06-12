@@ -1,27 +1,28 @@
 import { Component } from '@angular/core';
-import { ApiService } from '../services/api.service';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { MatCardModule } from '@angular/material/card';
+import { MatButtonModule } from '@angular/material/button';
+import { MatListModule } from '@angular/material/list';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { MatCard, MatCardTitle, MatCardContent } from '@angular/material/card';
-import { MatButton } from '@angular/material/button';
-import { MatDivider } from '@angular/material/list';
-import { MatFormField, MatLabel } from '@angular/material/form-field';
-import { MatSelect, MatOption } from '@angular/material/select';
+import { ApiService } from '../services/api.service';
 
 @Component({
-    selector: 'app-manual',
-    templateUrl: './manual.html',
-    styleUrls: ['./manual.css'],
-    imports: [
-        MatCard,
-        MatCardTitle,
-        MatCardContent,
-        MatButton,
-        MatDivider,
-        MatFormField,
-        MatLabel,
-        MatSelect,
-        MatOption,
-    ],
+  selector: 'app-manual',
+  standalone: true,
+  templateUrl: './manual.html',
+  styleUrls: ['./manual.css'],
+  imports: [
+    CommonModule,
+    FormsModule,
+    MatCardModule,
+    MatButtonModule,
+    MatListModule,
+    MatFormFieldModule,
+    MatSelectModule,
+  ],
 })
 export class ManualComponent {
   constructor(

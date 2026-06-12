@@ -1,18 +1,16 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { Telemetry } from './telemetry';
-
+import { TelemetryComponent } from './telemetry';
 describe('Telemetry', () => {
-  let component: Telemetry;
-  let fixture: ComponentFixture<Telemetry>;
+  let component: TelemetryComponent;
+  let fixture: ComponentFixture<TelemetryComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [Telemetry]
-    })
-    .compileComponents();
+      declarations: [TelemetryComponent],
+    }).compileComponents();
 
-    fixture = TestBed.createComponent(Telemetry);
+    fixture = TestBed.createComponent(TelemetryComponent);
     component = fixture.componentInstance;
     await fixture.whenStable();
   });
