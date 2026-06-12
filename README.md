@@ -300,3 +300,178 @@ MIT – free for personal and commercial use.
 ---
 
 _Happy growing!_ 🌱
+
+```
+DWC_System
+├─ dwc-dashboard
+│  ├─ .editorconfig
+│  ├─ angular.json
+│  ├─ package-lock.json
+│  ├─ package.json
+│  ├─ public
+│  │  └─ favicon.ico
+│  ├─ README.md
+│  ├─ src
+│  │  ├─ app
+│  │  │  ├─ app-routing.module.ts
+│  │  │  ├─ app.css
+│  │  │  ├─ app.html
+│  │  │  ├─ app.module.server.ts
+│  │  │  ├─ app.module.ts
+│  │  │  ├─ app.routes.server.ts
+│  │  │  ├─ app.spec.ts
+│  │  │  ├─ app.ts
+│  │  │  ├─ calibration
+│  │  │  │  ├─ calibration.css
+│  │  │  │  ├─ calibration.html
+│  │  │  │  ├─ calibration.spec.ts
+│  │  │  │  └─ calibration.ts
+│  │  │  ├─ manual
+│  │  │  │  ├─ manual.css
+│  │  │  │  ├─ manual.html
+│  │  │  │  ├─ manual.spec.ts
+│  │  │  │  └─ manual.ts
+│  │  │  ├─ nutrient
+│  │  │  │  ├─ nutrient.css
+│  │  │  │  ├─ nutrient.html
+│  │  │  │  ├─ nutrient.spec.ts
+│  │  │  │  └─ nutrient.ts
+│  │  │  ├─ services
+│  │  │  │  ├─ api.service.spec.ts
+│  │  │  │  ├─ api.service.ts
+│  │  │  │  ├─ socket.service.spec.ts
+│  │  │  │  └─ socket.service.ts
+│  │  │  ├─ telemetry
+│  │  │  │  ├─ telemetry.css
+│  │  │  │  ├─ telemetry.html
+│  │  │  │  ├─ telemetry.spec.ts
+│  │  │  │  └─ telemetry.ts
+│  │  │  └─ watchdog
+│  │  │     ├─ watchdog.css
+│  │  │     ├─ watchdog.html
+│  │  │     ├─ watchdog.spec.ts
+│  │  │     └─ watchdog.ts
+│  │  ├─ index.html
+│  │  ├─ main.server.ts
+│  │  ├─ main.ts
+│  │  ├─ server.ts
+│  │  └─ styles.css
+│  ├─ tsconfig.app.json
+│  ├─ tsconfig.json
+│  └─ tsconfig.spec.json
+├─ dwc-server
+│  ├─ config
+│  │  ├─ calibration.json
+│  │  ├─ hardware.json
+│  │  ├─ nutrient_profile.json
+│  │  └─ system.json
+│  ├─ coverage
+│  │  ├─ clover.xml
+│  │  ├─ coverage-final.json
+│  │  ├─ lcov-report
+│  │  │  ├─ base.css
+│  │  │  ├─ block-navigation.js
+│  │  │  ├─ favicon.png
+│  │  │  ├─ index.html
+│  │  │  ├─ prettify.css
+│  │  │  ├─ prettify.js
+│  │  │  ├─ sort-arrow-sprite.png
+│  │  │  ├─ sorter.js
+│  │  │  ├─ src
+│  │  │  │  ├─ index.html
+│  │  │  │  ├─ server.js.html
+│  │  │  │  └─ services
+│  │  │  │     ├─ calibrationService.js.html
+│  │  │  │     ├─ index.html
+│  │  │  │     ├─ mqttService.js.html
+│  │  │  │     ├─ recipeEngine.js.html
+│  │  │  │     └─ watchdog.js.html
+│  │  │  └─ tests
+│  │  │     └─ mocks
+│  │  │        ├─ index.html
+│  │  │        └─ mockMqttService.js.html
+│  │  └─ lcov.info
+│  ├─ package-lock.json
+│  ├─ package.json
+│  ├─ prisma
+│  │  ├─ dev.db
+│  │  ├─ migrations
+│  │  │  ├─ 20260608210235_init
+│  │  │  │  └─ migration.sql
+│  │  │  ├─ 20260608230349_init
+│  │  │  │  └─ migration.sql
+│  │  │  ├─ 20260609150536_add_batch_state
+│  │  │  │  └─ migration.sql
+│  │  │  └─ migration_lock.toml
+│  │  └─ schema.prisma
+│  ├─ prisma.config.ts
+│  ├─ src
+│  │  ├─ api
+│  │  ├─ db
+│  │  ├─ recipes
+│  │  │  └─ default.json
+│  │  ├─ server.js
+│  │  └─ services
+│  │     ├─ calibrationService.js
+│  │     ├─ mqttService.js
+│  │     ├─ recipeEngine.js
+│  │     └─ watchdog.js
+│  └─ tests
+│     ├─ e2e
+│     ├─ integration
+│     │  ├─ pumpRecovery.test.js
+│     │  └─ systemIntegrity.test.js
+│     ├─ mocks
+│     │  ├─ mockMqttService.js
+│     │  ├─ VirtualPump.js
+│     │  └─ VirtualSensorStation.js
+│     ├─ setup.js
+│     └─ unit
+│        ├─ heatmapResolver.test.js
+│        ├─ profileResolver.test.js
+│        ├─ recipeMath.test.js
+│        ├─ server
+│        │  ├─ api.test.js
+│        │  └─ serverStartup.test.js
+│        └─ services
+│           ├─ calibrationService.test.js
+│           ├─ mqttService.test.js
+│           ├─ mqttServiceEdge.test.js
+│           ├─ recipeEngine
+│           │  ├─ edgeCases.test.js
+│           │  ├─ executePumpAndWait.test.js
+│           │  ├─ executeTick.test.js
+│           │  ├─ helpers.test.js
+│           │  ├─ remainingCoverage.test.js
+│           │  └─ strainProfile.test.js
+│           └─ watchdog.test.js
+├─ PumpStation
+│  ├─ diagram.json
+│  ├─ include
+│  │  └─ README
+│  ├─ lib
+│  │  └─ README
+│  ├─ libraries.txt
+│  ├─ platformio.ini
+│  ├─ src
+│  │  └─ main.cpp
+│  ├─ test
+│  │  └─ README
+│  └─ wokwi.toml
+├─ README.md
+└─ SensorStation
+   ├─ diagram.json
+   ├─ include
+   │  └─ README
+   ├─ lib
+   │  └─ README
+   ├─ libraries.txt
+   ├─ platformio.ini
+   ├─ sketch.ino
+   ├─ src
+   │  └─ main.cpp
+   ├─ test
+   │  └─ README
+   └─ wokwi.toml
+
+```

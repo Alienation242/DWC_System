@@ -1,1 +1,31 @@
-<p>manual works!</p>
+<mat-card>
+  <mat-card-title>🎮 Manual Overrides</mat-card-title>
+  <mat-card-content>
+    <div class="button-group">
+      <button mat-raised-button color="warn" (click)="emergencyStop()">⛔ Emergency Stop</button>
+    </div>
+    <mat-divider></mat-divider>
+    <h3>Dose Water</h3>
+    <div><input #waterMl type="number" value="500" step="100" /> ml</div>
+    <button mat-raised-button (click)="doseWater(waterMl.valueAsNumber)">💧 Dose Water</button>
+
+    <h3>Dose pH Down</h3>
+    <div><input #phDownMl type="number" value="2" step="1" /> ml</div>
+    <button mat-raised-button (click)="dosePhDown(phDownMl.valueAsNumber)">🔽 pH Down</button>
+
+    <h3>Deliver to Pot</h3>
+    <div>
+      <mat-form-field>
+        <mat-label>Pot</mat-label>
+        <mat-select #target>
+          <mat-option value="A">A</mat-option>
+          <mat-option value="B">B</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <input #deliverVol type="number" value="1000" step="100" /> ml
+    </div>
+    <button mat-raised-button (click)="deliver(target.value, deliverVol.valueAsNumber)">
+      🚰 Deliver
+    </button>
+  </mat-card-content>
+</mat-card>

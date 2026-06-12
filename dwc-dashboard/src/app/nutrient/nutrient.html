@@ -1,1 +1,32 @@
-<p>nutrient works!</p>
+<mat-card>
+  <mat-card-title>🧪 Nutrient Profile</mat-card-title>
+  <mat-card-content>
+    <div>
+      <mat-form-field appearance="fill">
+        <mat-label>Brand Name</mat-label>
+        <input matInput [(ngModel)]="config.brandName" />
+      </mat-form-field>
+    </div>
+    <div>
+      <mat-form-field appearance="fill">
+        <mat-label>Carrier Fluid</mat-label>
+        <input matInput [(ngModel)]="config.carrierFluid" />
+      </mat-form-field>
+    </div>
+    <div>
+      <mat-form-field appearance="fill">
+        <mat-label>Carrier Volume (ml)</mat-label>
+        <input matInput type="number" [(ngModel)]="config.carrierVolumeMl" />
+      </mat-form-field>
+    </div>
+    <div>
+      <mat-form-field appearance="fill">
+        <mat-label>Mixing Sequence</mat-label>
+        <mat-select [(ngModel)]="config.mixingSequence" multiple>
+          <mat-option *ngFor="let n of availableNutrients" [value]="n">{{ n }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+    <button mat-raised-button color="primary" (click)="save()">Save Changes</button>
+  </mat-card-content>
+</mat-card>

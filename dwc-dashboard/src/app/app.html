@@ -1,0 +1,23 @@
+<mat-toolbar color="primary">
+  <span>🌿 DWC Controller</span>
+  <span class="spacer"></span>
+  <span class="status-text">Online</span>
+</mat-toolbar>
+
+<mat-sidenav-container>
+  <mat-sidenav mode="side" opened>
+    <mat-nav-list>
+      <a mat-list-item routerLink="/dashboard" routerLinkActive="active">📊 Dashboard</a>
+      <a mat-list-item routerLink="/watchdog" routerLinkActive="active">🛡️ Watchdog</a>
+      <a mat-list-item routerLink="/nutrient" routerLinkActive="active">🧪 Nutrient Profile</a>
+      <a mat-list-item routerLink="/calibration" routerLinkActive="active">⚙️ Calibration</a>
+      <a mat-list-item routerLink="/manual" routerLinkActive="active">🎮 Manual Controls</a>
+    </mat-nav-list>
+  </mat-sidenav>
+
+  <mat-sidenav-content>
+    <div class="content">
+      <router-outlet></router-outlet>
+    </div>
+  </mat-sidenav-content>
+</mat-sidenav-container>

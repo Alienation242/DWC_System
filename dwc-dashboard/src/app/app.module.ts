@@ -3,7 +3,9 @@ import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { HttpClientModule } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { CommonModule } from '@angular/common'; // <-- ADD THIS
 
+// Material modules (already present)
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
@@ -19,38 +21,29 @@ import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatGridListModule } from '@angular/material/grid-list';
+import { MatDividerModule } from '@angular/material/divider';
 
-import { AppComponent } from './app.component';
-import { TelemetryComponent } from './telemetry/telemetry.component';
-import { SystemComponent } from './system/system.component';
-import { WatchdogComponent } from './watchdog/watchdog.component';
-import { NutrientComponent } from './nutrient/nutrient.component';
-import { CalibrationComponent } from './calibration/calibration.component';
-import { ManualComponent } from './manual/manual.component';
-import { Telemetry } from './telemetry/telemetry';
-import { Watchdog } from './watchdog/watchdog';
-import { Nutrient } from './nutrient/nutrient';
-import { Calibration } from './calibration/calibration';
-import { Manual } from './manual/manual';
+import { AppRoutingModule } from './app-routing.module'; // now correctly named
+import { AppComponent } from './app';
+import { TelemetryComponent } from './telemetry/telemetry';
+import { WatchdogComponent } from './watchdog/watchdog';
+import { NutrientComponent } from './nutrient/nutrient';
+import { CalibrationComponent } from './calibration/calibration';
+import { ManualComponent } from './manual/manual';
 
 @NgModule({
   declarations: [
     AppComponent,
     TelemetryComponent,
-    SystemComponent,
     WatchdogComponent,
     NutrientComponent,
     CalibrationComponent,
     ManualComponent,
-    Telemetry,
-    Watchdog,
-    Nutrient,
-    Calibration,
-    Manual,
   ],
   imports: [
     BrowserModule,
     BrowserAnimationsModule,
+    CommonModule,
     HttpClientModule,
     FormsModule,
     ReactiveFormsModule,
@@ -69,6 +62,8 @@ import { Manual } from './manual/manual';
     MatTabsModule,
     MatProgressSpinnerModule,
     MatGridListModule,
+    MatDividerModule,
+    AppRoutingModule,
   ],
   providers: [],
   bootstrap: [AppComponent],

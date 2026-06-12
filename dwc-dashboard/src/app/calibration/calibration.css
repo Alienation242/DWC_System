@@ -1,0 +1,9 @@
+div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+mat-form-field {
+  width: 150px;
+}

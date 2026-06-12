@@ -1,1 +1,44 @@
-<p>calibration works!</p>
+<mat-card>
+  <mat-card-title>⚙️ pH & EC Calibration</mat-card-title>
+  <mat-card-content>
+    <h3>pH</h3>
+    <div>
+      <mat-form-field
+        ><mat-label>Raw Low</mat-label
+        ><input matInput type="number" [(ngModel)]="calibration.pH.rawLow"
+      /></mat-form-field>
+      <mat-form-field
+        ><mat-label>Real Low</mat-label
+        ><input matInput type="number" step="0.1" [(ngModel)]="calibration.pH.realLow"
+      /></mat-form-field>
+      <mat-form-field
+        ><mat-label>Raw High</mat-label
+        ><input matInput type="number" [(ngModel)]="calibration.pH.rawHigh"
+      /></mat-form-field>
+      <mat-form-field
+        ><mat-label>Real High</mat-label
+        ><input matInput type="number" step="0.1" [(ngModel)]="calibration.pH.realHigh"
+      /></mat-form-field>
+    </div>
+    <h3>EC</h3>
+    <div>
+      <mat-form-field
+        ><mat-label>Raw Low</mat-label
+        ><input matInput type="number" [(ngModel)]="calibration.EC.rawLow"
+      /></mat-form-field>
+      <mat-form-field
+        ><mat-label>Real Low</mat-label
+        ><input matInput type="number" step="0.1" [(ngModel)]="calibration.EC.realLow"
+      /></mat-form-field>
+      <mat-form-field
+        ><mat-label>Raw High</mat-label
+        ><input matInput type="number" [(ngModel)]="calibration.EC.rawHigh"
+      /></mat-form-field>
+      <mat-form-field
+        ><mat-label>Real High</mat-label
+        ><input matInput type="number" step="0.1" [(ngModel)]="calibration.EC.realHigh"
+      /></mat-form-field>
+    </div>
+    <button mat-raised-button color="primary" (click)="save()">Save Calibration</button>
+  </mat-card-content>
+</mat-card>
