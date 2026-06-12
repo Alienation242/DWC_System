@@ -94,7 +94,7 @@ export class ApiService {
   deliver(target: string, volumeMl: number) {
     return this.http.post<{ success: boolean }>(`${this.base}/manual/deliver`, {
       target,
-      volume_ml: volumeMl,
+      volumeMl: volumeMl,
     });
   }
 }
