@@ -11,17 +11,17 @@ export interface Telemetry {
   isTankOverflowing: boolean;
 }
 
-export interface NetworkUpdate {
-  sensor_node_1: string;
-  pump_node_1: string;
-}
-
 @Injectable({ providedIn: 'root' })
 export class SocketService {
   private socket: Socket;
 
   constructor() {
-    this.socket = io(); // connects to same origin
+    this.socket = io('http://localhost:3000', {
+      transports: ['websocket', 'polling'],
+    });
+
+    this.socket.on('connect', () => console.log('✅ Socket connected'));
+    this.socket.on('connect_error', (err) => console.error('Socket error:', err));
   }
 
   onTelemetry(): Observable<Telemetry> {
@@ -30,9 +30,9 @@ export class SocketService {
     });
   }
 
-  onNetworkUpdate(): Observable<NetworkUpdate> {
+  onNetworkUpdate(): Observable<any> {
     return new Observable((observer) => {
-      this.socket.on('network_update', (data: NetworkUpdate) => observer.next(data));
+      this.socket.on('network_update', (data: any) => observer.next(data));
     });
   }
 }

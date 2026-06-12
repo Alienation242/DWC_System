@@ -1,12 +1,27 @@
 import { Component } from '@angular/core';
 import { ApiService } from '../services/api.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatCard, MatCardTitle, MatCardContent } from '@angular/material/card';
+import { MatButton } from '@angular/material/button';
+import { MatDivider } from '@angular/material/list';
+import { MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatSelect, MatOption } from '@angular/material/select';
 
 @Component({
-  selector: 'app-manual',
-  templateUrl: './manual.html',
-  styleUrls: ['./manual.css'],
-  standalone: false,
+    selector: 'app-manual',
+    templateUrl: './manual.html',
+    styleUrls: ['./manual.css'],
+    imports: [
+        MatCard,
+        MatCardTitle,
+        MatCardContent,
+        MatButton,
+        MatDivider,
+        MatFormField,
+        MatLabel,
+        MatSelect,
+        MatOption,
+    ],
 })
 export class ManualComponent {
   constructor(
@@ -28,8 +43,9 @@ export class ManualComponent {
       .subscribe((r) => this.snack.open(`Dosed ${r.dosedMl} ml pH Down`, 'OK'));
   }
   deliver(target: string, vol: number) {
-    this.api
-      .deliver(target, vol)
-      .subscribe(() => this.snack.open(`Delivered ${vol} ml to pot ${target}`, 'OK'));
+    this.api.deliver(target, vol).subscribe({
+      next: () => this.snack.open(`Delivered ${vol} ml to pot ${target}`, 'OK'),
+      error: (err) => this.snack.open(`Error: ${err.error?.error || err.message}`, 'Close'),
+    });
   }
 }
