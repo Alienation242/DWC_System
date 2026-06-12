@@ -10,6 +10,10 @@
     <div><input type="number" [(ngModel)]="waterVol" step="100" /> ml</div>
     <button mat-raised-button (click)="doseWater()">💧 Dose Water</button>
 
+    <h3>Dose pH Up</h3>
+    <div><input type="number" [(ngModel)]="phUpVol" step="1" /> ml</div>
+    <button mat-raised-button (click)="dosePhUp()">🔼 pH Up</button>
+
     <h3>Dose pH Down</h3>
     <div><input type="number" [(ngModel)]="phDownVol" step="1" /> ml</div>
     <button mat-raised-button (click)="dosePhDown()">🔽 pH Down</button>

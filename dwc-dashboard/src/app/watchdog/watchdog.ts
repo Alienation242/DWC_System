@@ -7,6 +7,8 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService, WatchdogConfig } from '../services/api.service';
+import { DialogService } from '../services/dialog.service';
+import { MatDialogModule } from '@angular/material/dialog';
 
 @Component({
   selector: 'app-watchdog',
@@ -20,6 +22,7 @@ import { ApiService, WatchdogConfig } from '../services/api.service';
     MatTableModule,
     MatSlideToggleModule,
     MatButtonModule,
+    MatDialogModule,
   ],
 })
 export class WatchdogComponent implements OnInit {
@@ -30,6 +33,7 @@ export class WatchdogComponent implements OnInit {
     private api: ApiService,
     private snackBar: MatSnackBar,
     private cdr: ChangeDetectorRef,
+    private dialog: DialogService,
   ) {}
 
   ngOnInit() {
@@ -43,9 +47,16 @@ export class WatchdogComponent implements OnInit {
   }
 
   save(config: WatchdogConfig) {
-    this.api.upsertWatchdogConfig(config).subscribe({
-      next: () => this.snackBar.open(`Saved ${config.pumpName}`, 'OK', { duration: 2000 }),
-      error: (err) => this.snackBar.open(`Error: ${err.message}`, 'Close', { duration: 3000 }),
-    });
+    this.dialog
+      .confirm(`Save watchdog config for ${config.pumpName}?`, 'Confirm')
+      .subscribe((confirmed) => {
+        if (confirmed) {
+          this.api.upsertWatchdogConfig(config).subscribe({
+            next: () => this.snackBar.open(`Saved ${config.pumpName}`, 'OK', { duration: 2000 }),
+            error: (err) =>
+              this.snackBar.open(`Error: ${err.message}`, 'Close', { duration: 3000 }),
+          });
+        }
+      });
   }
 }

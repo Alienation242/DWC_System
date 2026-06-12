@@ -7,6 +7,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService, Calibration } from '../services/api.service';
+import { DialogService } from '../services/dialog.service';
+import { MatDialogModule } from '@angular/material/dialog';
 
 @Component({
   selector: 'app-calibration',
@@ -20,6 +22,7 @@ import { ApiService, Calibration } from '../services/api.service';
     MatFormFieldModule,
     MatInputModule,
     MatButtonModule,
+    MatDialogModule,
   ],
 })
 export class CalibrationComponent implements OnInit {
@@ -31,6 +34,7 @@ export class CalibrationComponent implements OnInit {
   constructor(
     private api: ApiService,
     private snack: MatSnackBar,
+    private dialog: DialogService,
   ) {}
 
   ngOnInit() {
@@ -38,9 +42,13 @@ export class CalibrationComponent implements OnInit {
   }
 
   save() {
-    this.api.updateCalibration(this.calibration).subscribe({
-      next: () => this.snack.open('Calibration saved', 'OK', { duration: 2000 }),
-      error: (err) => this.snack.open(`Error: ${err.message}`, 'Close', { duration: 3000 }),
+    this.dialog.confirm('Save calibration settings?', 'Confirm Save').subscribe((confirmed) => {
+      if (confirmed) {
+        this.api.updateCalibration(this.calibration).subscribe({
+          next: () => this.snack.open('Calibration saved', 'OK', { duration: 2000 }),
+          error: (err) => this.snack.open(`Error: ${err.message}`, 'Close', { duration: 3000 }),
+        });
+      }
     });
   }
 }
