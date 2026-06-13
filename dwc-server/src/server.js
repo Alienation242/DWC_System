@@ -227,9 +227,32 @@ app.post("/api/manual/dose", async (req, res) => {
   if (!pumpName || !actionStr || !ml) {
     return res.status(400).json({ error: "Missing pumpName, actionStr or ml" });
   }
+
   try {
-    const dosed = await engine.executePumpAndWait(pumpName, actionStr, ml);
-    res.json({ success: true, dosedMl: dosed });
+    // Check if this is a pH dose
+    const isPhDose = pumpName === "pH_Down" || pumpName === "pH_Up";
+    let dosedTotal = 0;
+
+    if (isPhDose) {
+      // First dose carrier water (250ml fixed)
+      const waterDosed = await engine.executePumpAndWait(
+        "Water",
+        "dose_water",
+        200,
+      );
+      // Then dose the pH solution
+      const phDosed = await engine.executePumpAndWait(pumpName, actionStr, ml);
+      dosedTotal = waterDosed + phDosed;
+      res.json({
+        success: true,
+        dosedMl: dosedTotal,
+        details: { water: waterDosed, ph: phDosed },
+      });
+    } else {
+      // Normal dose (Water, nutrients, etc.)
+      const dosed = await engine.executePumpAndWait(pumpName, actionStr, ml);
+      res.json({ success: true, dosedMl: dosed });
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -46,31 +46,18 @@ export class ManualComponent {
       .subscribe((r) => this.snack.open(`Dosed ${r.dosedMl} ml`, 'OK'));
   }
 
-  private dosePh(type: 'pH_Down' | 'pH_Up', action: 'dose_ph_down' | 'dose_ph_up', ml: number) {
-    this.api
-      .dose('Water', 'dose_water', 250) // carrier water first
-      .subscribe({
-        next: (waterResult) => {
-          this.api.dose(type, action, ml).subscribe({
-            next: (phResult) => {
-              this.snack.open(
-                `Dosed ${waterResult.dosedMl}ml water + ${phResult.dosedMl}ml ${type}`,
-                'OK',
-              );
-            },
-            error: (err) => this.snack.open(`pH dose error: ${err.message}`, 'Close'),
-          });
-        },
-        error: (err) => this.snack.open(`Water dose error: ${err.message}`, 'Close'),
-      });
-  }
-
   dosePhDown() {
-    this.dosePh('pH_Down', 'dose_ph_down', this.phDownVol);
+    this.api.dose('pH_Down', 'dose_ph_down', this.phDownVol).subscribe({
+      next: (r) => this.snack.open(`Dosed ${r.dosedMl} ml pH Down (includes carrier water)`, 'OK'),
+      error: (err) => this.snack.open(`Error: ${err.message}`, 'Close'),
+    });
   }
 
   dosePhUp() {
-    this.dosePh('pH_Up', 'dose_ph_up', this.phUpVol);
+    this.api.dose('pH_Up', 'dose_ph_up', this.phUpVol).subscribe({
+      next: (r) => this.snack.open(`Dosed ${r.dosedMl} ml pH Up (includes carrier water)`, 'OK'),
+      error: (err) => this.snack.open(`Error: ${err.message}`, 'Close'),
+    });
   }
 
   deliver() {
