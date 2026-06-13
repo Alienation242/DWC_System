@@ -35,9 +35,6 @@ export class PotDetailComponent implements OnInit, OnDestroy {
   historyLoaded: boolean = false;
   private subs = new Subscription();
 
-  @ViewChild('phCanvas') phChart?: BaseChartDirective;
-  @ViewChild('ecCanvas') ecChart?: BaseChartDirective;
-
   public chartOptions: ChartConfiguration<'line'>['options'] = {
     responsive: true,
     animation: false,
@@ -130,29 +127,23 @@ export class PotDetailComponent implements OnInit, OnDestroy {
   }
 
   pushLivePoint(data: Telemetry) {
-    if (!data.timestamp) return;
-
-    const newDate = new Date(data.timestamp);
-    const timeStr = newDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    // 1. Ignore if point is older than the last one in the chart (fixes jumping)
-    const lastLabel = this.phChartData.labels?.[this.phChartData.labels.length - 1];
-    if (lastLabel === timeStr) return;
+    const timeStr = data.timestamp
+      ? new Date(data.timestamp).toLocaleTimeString()
+      : new Date().toLocaleTimeString();
+    if (this.phChartData.labels?.includes(timeStr)) return;
 
     this.phChartData.labels?.push(timeStr);
     this.phChartData.datasets[0].data.push(data.realPH);
     this.ecChartData.labels?.push(timeStr);
     this.ecChartData.datasets[0].data.push(data.realEC);
 
-    // 2. Keep limit
     while (this.phChartData.labels!.length > 50) {
       this.phChartData.labels?.shift();
       this.phChartData.datasets[0].data.shift();
       this.ecChartData.labels?.shift();
       this.ecChartData.datasets[0].data.shift();
     }
-
-    this.phChart?.update('none'); // 'none' prevents animation glitches
+    // No need to call update() – NgChartsModule listens to changes
   }
 
   ngOnDestroy() {
