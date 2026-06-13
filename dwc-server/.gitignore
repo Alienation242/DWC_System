@@ -7,5 +7,6 @@ node_modules
 prisma/*.db
 prisma/dev.db
 prisma/*.db-journal
+prisma/migrations
 
 /coverage/*

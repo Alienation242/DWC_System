@@ -13,6 +13,7 @@ const RecipeEngine = require("./services/recipeEngine");
 const calibrationRoutes = require("./api/calibration");
 const watchdogRoutes = require("./api/watchdog");
 const nutrientRoutes = require("./api/nutrient");
+const telemetryRoutes = require("./api/telemetry");
 const systemFactory = require("./api/system");
 const manualFactory = require("./api/manual");
 
@@ -106,7 +107,7 @@ const engine = new RecipeEngine(hardwareComms);
 app.use("/api/calibration", calibrationRoutes);
 app.use("/api/watchdog", watchdogRoutes);
 app.use("/api/nutrient-config", nutrientRoutes);
-
+app.use("/api/telemetry", telemetryRoutes);
 // Routes that need engine or hardwareComms
 app.use("/api/system", systemFactory(engine));
 app.use("/api/manual", manualFactory(engine, hardwareComms));
@@ -151,9 +152,7 @@ if (require.main === module) {
         where: { active: true },
       });
       if (incompleteBatch) {
-        console.warn(
-          "⚠️ Found incomplete batch from previous run. Sending emergency stop.",
-        );
+        console.warn("⚠️ Found incomplete batch. Sending emergency stop.");
         hardwareComms.sendCommand("stop");
         await prisma.batchState.update({
           where: { id: incompleteBatch.id },

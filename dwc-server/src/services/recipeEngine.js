@@ -7,7 +7,7 @@ const path = require("path");
 const TARGET_PH = 5.8;
 const CALMAG_PPM_PER_ML_L = 375.0;
 const BASE_PPM_PER_ML_L = 136.4;
-const SUBMERSIBLE_FLOW_ML_PER_SEC = 50.0; // matches firmware
+const SUBMERSIBLE_FLOW_ML_PER_SEC = 50.0;
 
 const NUTRIENT_PROFILE_PATH = path.join(
   process.cwd(),
@@ -29,7 +29,7 @@ class RecipeEngine {
     this.submersibleFlowMlPerSec = null;
   }
 
-  // ---------- Pure helpers (refactored for testability) ----------
+  // ---------- Pure helpers ----------
   _calculateDilutionMl(sysVol, livePPM, targetPPM, maxBatchMl) {
     if (targetPPM <= 0) return Math.min(sysVol * 1000, maxBatchMl);
     const dilution = sysVol * 1000 * (livePPM / targetPPM - 1);
@@ -63,7 +63,7 @@ class RecipeEngine {
     return { strainProfile, nutrientConfig, maxBatchMl };
   }
 
-  async _handleEcExcess(livePPM, targetPPM, sysVol, maxBatchMl) {
+  async _handleEcExcess(livePPM, targetPPM, sysVol, maxBatchMl, potId = "A") {
     const dilutionMl = this._calculateDilutionMl(
       sysVol,
       livePPM,
@@ -76,9 +76,10 @@ class RecipeEngine {
       "Water",
       "dose_water",
       dilutionMl,
+      { potId },
     );
     if (actualWater > 0) {
-      await this._deliverToPot(actualWater * 1.2);
+      await this._deliverToPot(actualWater * 1.2, potId);
       console.log(`✅ Dilution complete`);
       return true;
     }
@@ -93,6 +94,7 @@ class RecipeEngine {
     sysVol,
     nutrientConfig,
     maxBatchMl,
+    potId = "A",
   ) {
     const deficitPPM = targetPPM - livePPM;
     console.log(`📉 EC Deficit -${deficitPPM.toFixed(0)} PPM`);
@@ -152,6 +154,7 @@ class RecipeEngine {
       nutrientConfig.carrierFluid,
       "dose_water",
       finalCarrier,
+      { potId },
     );
 
     let totalInjected = 0;
@@ -165,17 +168,19 @@ class RecipeEngine {
     for (const nut of nutrientConfig.mixingSequence) {
       const p = pumpMap[nut];
       if (p && p.amount > 0.5) {
-        totalInjected += await this.executePumpAndWait(nut, p.topic, p.amount);
+        totalInjected += await this.executePumpAndWait(nut, p.topic, p.amount, {
+          potId,
+        });
       }
     }
 
     const totalVolume = finalCarrier + totalInjected;
-    await this._deliverToPot(totalVolume * 1.2);
+    await this._deliverToPot(totalVolume * 1.2, potId);
     console.log(`✅ Nutrient batch complete`);
     return true;
   }
 
-  async _handlePhCorrection(livePH) {
+  async _handlePhCorrection(livePH, potId = "A") {
     const pHerror = livePH - TARGET_PH;
     if (!this._isPpHErrorSignificant(livePH)) return false;
     const type = pHerror > 0 ? "pH_Down" : "pH_Up";
@@ -185,18 +190,20 @@ class RecipeEngine {
       `🚀 pH correction: ${type} ${doseMl.toFixed(1)}ml (error = ${pHerror.toFixed(2)})`,
     );
 
-    if (!(await Watchdog.isSafeToDose(type, doseMl))) {
+    if (!(await Watchdog.isSafeToDose(type, doseMl, potId))) {
       console.log(`⏭️ pH correction blocked by watchdog`);
       return false;
     }
-    await this.executePumpAndWait("Water", "dose_water", 250.0);
-    const actualAcid = await this.executePumpAndWait(type, topic, doseMl);
-    await this._deliverToPot((250 + actualAcid) * 1.2);
+    await this.executePumpAndWait("Water", "dose_water", 250.0, { potId });
+    const actualAcid = await this.executePumpAndWait(type, topic, doseMl, {
+      potId,
+    });
+    await this._deliverToPot((250 + actualAcid) * 1.2, potId);
     console.log(`✅ pH correction complete`);
     return true;
   }
 
-  // ---------- Existing pure helpers (unchanged) ----------
+  // ---------- Curve helpers (unchanged) ----------
   resolveCurve(param, progress) {
     if (!param) return 0;
     progress = Math.max(0, Math.min(1, progress));
@@ -228,7 +235,6 @@ class RecipeEngine {
     const ripenDays = profile.ripenWks * 7;
 
     let phase, dayInPhase, maxDaysInPhase;
-
     if (currentDay <= flipDay) {
       phase = "veg";
       dayInPhase = currentDay;
@@ -273,7 +279,6 @@ class RecipeEngine {
     const ripenDays = profile.ripenWks * 7;
 
     let phase, dayInPhase, maxDaysInPhase;
-
     if (currentDay <= flipDay) {
       phase = "veg";
       dayInPhase = currentDay;
@@ -330,7 +335,6 @@ class RecipeEngine {
     const maxBoost = 150;
     const dynamicTargetPpm =
       floorPpm + Math.min(maxBoost, excessLight * lightMult);
-
     return { phase: stageMap[phase], targetPPM: dynamicTargetPpm };
   }
 
@@ -402,7 +406,6 @@ class RecipeEngine {
     }
   }
 
-  // ---------- Core delivery helper ----------
   async _deliverToPot(volumeMl, targetPot = "A") {
     await this._ensureHardwareConfig();
     if (volumeMl <= 0.5) return;
@@ -436,7 +439,6 @@ class RecipeEngine {
     }
   }
 
-  // ---------- Single pump dose (with watchdog, retries, and resume logic) ----------
   async executePumpAndWait(pumpName, actionStr, amountMl, options = {}) {
     const {
       maxRetries = 3,
@@ -444,6 +446,7 @@ class RecipeEngine {
       waitForDeviceTimeoutMs = 5000,
       waitForBusyTimeoutMs = 10000,
       waitForCompleteExtraMs = 30000,
+      potId = "A",
     } = options;
 
     await this._ensureHardwareConfig();
@@ -452,9 +455,11 @@ class RecipeEngine {
     const safeMl = isWater ? amountMl : Math.min(15.0, amountMl);
     const flowRate = this.peristalticFlowMlPerSec;
 
-    if (!(await Watchdog.isSafeToDose(pumpName, safeMl))) return 0;
+    if (!(await Watchdog.isSafeToDose(pumpName, safeMl, potId))) return 0;
 
-    console.log(`⏳ Dosing: ${pumpName} (${safeMl.toFixed(1)}ml)`);
+    console.log(
+      `⏳ Dosing: ${pumpName} (${safeMl.toFixed(1)}ml) for pot ${potId}`,
+    );
 
     let remainingMl = safeMl;
     let retries = 0;
@@ -564,7 +569,7 @@ class RecipeEngine {
       );
     }
 
-    await Watchdog.logSuccessfulDose(pumpName, safeMl);
+    await Watchdog.logSuccessfulDose(pumpName, safeMl, potId);
     return safeMl;
   }
 
@@ -585,7 +590,7 @@ class RecipeEngine {
     });
   }
 
-  // ---------- Main tick (refactored to use helpers) ----------
+  // ---------- Main tick ----------
   async executeTick() {
     if (this.isTicking) return;
     this.isTicking = true;
@@ -593,7 +598,11 @@ class RecipeEngine {
     try {
       console.log(`\n--- 🧠 [RECIPE ENGINE] TICK ---`);
 
+      // For now, use pot "A" only – multi‑pot engine will be implemented later
+      const potId = "A";
+
       const telemetry = await prisma.telemetryLog.findFirst({
+        where: { potId },
         orderBy: { timestamp: "desc" },
       });
       if (!telemetry) {
@@ -623,7 +632,7 @@ class RecipeEngine {
       const livePH = telemetry.realPH;
 
       console.log(
-        `📊 Live | pH: ${livePH.toFixed(2)} | PPM: ${livePPM.toFixed(0)}`,
+        `📊 Live (Pot ${potId}) | pH: ${livePH.toFixed(2)} | PPM: ${livePPM.toFixed(0)}`,
       );
       console.log(
         `🎯 Target | Day: ${currentDay} | Phase: ${stage} | PPM: ${targetPPM.toFixed(0)}`,
@@ -643,7 +652,15 @@ class RecipeEngine {
 
       const deadbandPPM = 20;
       if (livePPM > targetPPM + deadbandPPM) {
-        if (await this._handleEcExcess(livePPM, targetPPM, sysVol, maxBatchMl))
+        if (
+          await this._handleEcExcess(
+            livePPM,
+            targetPPM,
+            sysVol,
+            maxBatchMl,
+            potId,
+          )
+        )
           return;
       } else if (livePPM < targetPPM - deadbandPPM) {
         if (
@@ -655,12 +672,13 @@ class RecipeEngine {
             sysVol,
             nutrientConfig,
             maxBatchMl,
+            potId,
           )
         )
           return;
       }
 
-      await this._handlePhCorrection(livePH);
+      await this._handlePhCorrection(livePH, potId);
       console.log(`✅ System stable`);
     } catch (err) {
       console.error("❌ Recipe Engine Error:", err);

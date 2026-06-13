@@ -5,10 +5,17 @@ const CalibrationService = require("./calibrationService");
 
 const prisma = new PrismaClient();
 const MQTT_BROKER = "mqtt://test.mosquitto.org";
-const TOPIC_TELEMETRY = "kevin/dwc/sensor_node_1/telemetry";
+const TOPIC_TELEMETRY_WILDCARD = "kevin/dwc/+/telemetry";
 const TOPIC_PUMP_STATUS = "kevin/dwc/pump_node_1/status";
 const TOPIC_PUMP_COMMANDS = "kevin/dwc/pump_node_1/commands";
 const TOPIC_CONNECTION_WILDCARD = "kevin/dwc/+/connection";
+
+function nodeNameToPotId(nodeName) {
+  const match = nodeName.match(/sensor_node_(\d+)/);
+  if (!match) return "A";
+  const num = parseInt(match[1]);
+  return String.fromCharCode(64 + num);
+}
 
 class MqttService extends EventEmitter {
   constructor(io) {
@@ -18,34 +25,33 @@ class MqttService extends EventEmitter {
     this.hardwareStatus = "idle";
     this.seqCounter = 0;
 
-    this.deviceRegistry = {
-      sensor_node_1: "offline",
-      pump_node_1: "offline",
-    };
+    this.deviceRegistry = {};
 
     this.client.on("connect", () => {
       console.log("✅ Connected to MQTT Broker");
-      this.client.subscribe(TOPIC_TELEMETRY);
+      this.client.subscribe(TOPIC_TELEMETRY_WILDCARD);
       this.client.subscribe(TOPIC_PUMP_STATUS);
       this.client.subscribe(TOPIC_CONNECTION_WILDCARD);
     });
 
     this.client.on("message", async (topic, message) => {
-      if (topic === TOPIC_TELEMETRY) {
-        await this.handleTelemetry(message);
+      if (topic.endsWith("/telemetry")) {
+        const parts = topic.split("/");
+        const nodeName = parts[2];
+        const potId = nodeNameToPotId(nodeName);
+        await this.handleTelemetry(message, potId);
       } else if (topic === TOPIC_PUMP_STATUS) {
         this.handleHardwareStatus(message);
       } else if (topic.endsWith("/connection")) {
         const parts = topic.split("/");
-        const deviceName = parts[parts.length - 2];
+        const nodeName = parts[2];
+        const potId = nodeNameToPotId(nodeName);
         const status = message.toString();
-
-        this.deviceRegistry[deviceName] = status;
+        this.deviceRegistry[nodeName] = status;
         console.log(
-          `📡 [NETWORK] ${deviceName} is now ${status.toUpperCase()}`,
+          `📡 [NETWORK] ${nodeName} (pot ${potId}) is now ${status.toUpperCase()}`,
         );
-
-        this.emit("network_change", deviceName, status);
+        this.emit("network_change", nodeName, status, potId);
         if (this.io) this.io.emit("network_update", this.deviceRegistry);
       }
     });
@@ -59,11 +65,9 @@ class MqttService extends EventEmitter {
     try {
       const payload = JSON.parse(message.toString());
       this.hardwareStatus = payload.status;
-      this.hardwareTask = payload.task; // <-- Store task
-      this.hardwareSeq = payload.seq; // <-- Store sequence
-
+      this.hardwareTask = payload.task;
+      this.hardwareSeq = payload.seq;
       this.emit("hardware_status", payload);
-
       if (payload.status === "dose_complete") {
         this.emit("pump_message", {
           seq: payload.seq,
@@ -175,36 +179,35 @@ class MqttService extends EventEmitter {
     });
   }
 
-  async handleTelemetry(message) {
+  async handleTelemetry(message, potId) {
     try {
       const payload = JSON.parse(message.toString());
       const realPH = await CalibrationService.convertPH(payload.rawPH);
       const realEC = await CalibrationService.convertEC(payload.rawEC);
       await prisma.telemetryLog.create({
         data: {
+          potId,
           rawPH: payload.rawPH,
           rawEC: payload.rawEC,
-          realPH: realPH,
-          realEC: realEC,
+          realPH,
+          realEC,
           isTankEmpty: payload.isTankEmpty || false,
           isTankOverflowing: payload.isTankOverflowing || false,
         },
       });
       console.log(
-        `💾 Telemetry Logged: pH ${realPH.toFixed(2)} | EC ${Math.round(realEC)}`,
+        `💾 Telemetry Logged (pot ${potId}): pH ${realPH.toFixed(2)} | EC ${Math.round(realEC)}`,
       );
 
       this.emit("telemetry", {
+        potId,
         rawPH: payload.rawPH,
         rawEC: payload.rawEC,
         realPH,
         realEC,
-        isTankEmpty: payload.isTankEmpty,
-        isTankOverflowing: payload.isTankOverflowing,
       });
-
       if (this.io) {
-        this.io.emit("telemetry_update", { ...payload, realPH, realEC });
+        this.io.emit("telemetry_update", { potId, ...payload, realPH, realEC });
       }
     } catch (error) {
       console.error("❌ Failed to process telemetry:", error.message);

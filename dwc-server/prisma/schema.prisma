@@ -8,15 +8,16 @@ generator client {
 }
 
 // Raw telemetry from ESP32 Sensor Node
-model TelemetryLog {
-  id                Int      @id @default(autoincrement())
-  timestamp         DateTime @default(now())
-  rawPH             Float
-  rawEC             Float
-  realPH            Float    // calculated pH
-  realEC            Float    // calculated EC
-  isTankEmpty       Boolean
-  isTankOverflowing Boolean
+model telemetryLog {
+  id                 Int      @id @default(autoincrement())
+  potId              String   @default("A")
+  rawPH              Int
+  rawEC              Int
+  realPH             Float
+  realEC             Float
+  isTankEmpty        Boolean
+  isTankOverflowing  Boolean
+  timestamp          DateTime @default(now())
 }
 
 // Persistent cultivation cycle state
@@ -32,12 +33,13 @@ model SystemState {
 }
 
 // Every successful or blocked dose (watchdog uses this)
-model DoseLog {
+model doseLog {
   id        Int      @id @default(autoincrement())
-  timestamp DateTime @default(now())
-  pumpName  String   // "pH_Down", "Micro", "Bloom", "CalMag", "Gro", "Finisher"
+  potId     String   @default("A")
+  pumpName  String
   ml        Float
-  status    String   @default("SUCCESS") // "SUCCESS", "BLOCKED"
+  status    String
+  timestamp DateTime @default(now())
 }
 
 // Watchdog configuration per pump
