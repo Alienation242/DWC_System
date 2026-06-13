@@ -21,9 +21,12 @@ describe("RecipeEngine.executeTick", () => {
     mockPrisma.systemState.findFirst.mockReset();
     mockPrisma.batchState.create.mockReset();
     mockPrisma.batchState.update.mockReset();
+    mockPrisma.telemetryLog.findMany.mockResolvedValue([{ potId: "A" }]);
 
     mqtt = new MockMqttService();
     engine = new RecipeEngine(mqtt);
+
+    jest.spyOn(engine, "_getActivePots").mockResolvedValue(["A"]);
 
     engine.executePumpAndWait = jest.fn().mockResolvedValue(100);
     engine._deliverToPot = jest.fn().mockResolvedValue();
@@ -128,6 +131,7 @@ describe("RecipeEngine.executeTick", () => {
       "Water",
       "dose_water",
       expect.any(Number),
+      expect.objectContaining({ potId: "A" }),
     );
     expect(engine._deliverToPot).toHaveBeenCalled();
   });
@@ -142,11 +146,13 @@ describe("RecipeEngine.executeTick", () => {
       "Water",
       "dose_water",
       expect.any(Number),
+      expect.objectContaining({ potId: "A" }),
     );
     expect(engine.executePumpAndWait).toHaveBeenCalledWith(
       "CalMag",
       "dose_calmag",
       expect.any(Number),
+      expect.objectContaining({ potId: "A" }),
     );
     expect(engine._deliverToPot).toHaveBeenCalled();
   });
@@ -161,11 +167,13 @@ describe("RecipeEngine.executeTick", () => {
       "pH_Down",
       "dose_ph_down",
       expect.any(Number),
+      expect.objectContaining({ potId: "A" }),
     );
     expect(engine.executePumpAndWait).toHaveBeenCalledWith(
       "Water",
       "dose_water",
       250,
+      expect.objectContaining({ potId: "A" }),
     );
     expect(engine._deliverToPot).toHaveBeenCalled();
   });
@@ -182,6 +190,7 @@ describe("RecipeEngine.executeTick", () => {
       "pH_Down",
       expect.anything(),
       expect.anything(),
+      expect.objectContaining({ potId: "A" }),
     );
   });
 
@@ -237,6 +246,7 @@ describe("RecipeEngine.executeTick", () => {
       "Water",
       "dose_water",
       expect.any(Number),
+      expect.objectContaining({ potId: "A" }),
     );
   });
 
@@ -316,6 +326,7 @@ describe("RecipeEngine.executeTick", () => {
       "Finisher",
       "dose_gro_fin_relay",
       expect.any(Number),
+      expect.objectContaining({ potId: "A" }),
     );
   });
 
@@ -360,6 +371,7 @@ describe("RecipeEngine.executeTick", () => {
       "Water",
       "dose_water",
       expect.any(Number),
+      expect.objectContaining({ potId: "A" }),
     );
   });
 });

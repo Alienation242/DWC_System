@@ -10,9 +10,23 @@ jest.mock("fs", () => ({
   },
 }));
 
+jest.mock("mqtt", () => ({
+  connect: jest.fn(() => ({
+    on: jest.fn(),
+    subscribe: jest.fn(),
+    publish: jest.fn(),
+    end: jest.fn(),
+    removeListener: jest.fn(),
+  })),
+}));
+
 // Create the mock Prisma client
 const mockPrisma = {
-  telemetryLog: { findFirst: jest.fn(), create: jest.fn() },
+  telemetryLog: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+  },
   systemState: {
     findFirst: jest.fn(),
     findUnique: jest.fn(),

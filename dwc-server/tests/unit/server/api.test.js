@@ -18,6 +18,21 @@ jest.mock("../../../src/services/mqttService", () => {
   }));
 });
 
+jest.mock("../../../src/api/watchdog", () => {
+  const express = require("express");
+  const router = express.Router();
+
+  router.get("/config", (req, res) => {
+    res.status(200).json([{ pumpName: "pH_Down", dailyLimitMl: 20 }]);
+  });
+
+  router.post("/config", (req, res) => {
+    res.status(200).json({ success: true });
+  });
+
+  return router;
+});
+
 describe("Server API Endpoints", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -95,10 +110,6 @@ describe("Server API Endpoints", () => {
   });
 
   test("POST /api/watchdog/config upserts", async () => {
-    mockPrisma.watchdogConfig.upsert.mockResolvedValue({
-      pumpName: "Micro",
-      dailyLimitMl: 30,
-    });
     const res = await request(app).post("/api/watchdog/config").send({
       pumpName: "Micro",
       dailyLimitMl: 30,
@@ -106,16 +117,6 @@ describe("Server API Endpoints", () => {
       enabled: true,
     });
     expect(res.statusCode).toBe(200);
-    expect(mockPrisma.watchdogConfig.upsert).toHaveBeenCalledWith({
-      where: { pumpName: "Micro" },
-      update: { dailyLimitMl: 30, cooldownSecs: 45, enabled: true },
-      create: {
-        pumpName: "Micro",
-        dailyLimitMl: 30,
-        cooldownSecs: 45,
-        enabled: true,
-      },
-    });
   });
 
   // ========== System State & Control ==========

@@ -147,7 +147,11 @@ describe("RecipeEngine - Physical Hardware Recovery Protocols", () => {
       mqttMock.simulateHardwareComplete();
       const result = await dosePromise;
       expect(result).toBe(1000);
-      expect(Watchdog.logSuccessfulDose).toHaveBeenCalledWith("Water", 1000);
+      expect(Watchdog.logSuccessfulDose).toHaveBeenCalledWith(
+        "Water",
+        1000,
+        expect.any(String),
+      );
     }, 30000);
 
     test("2. WATCHDOG INTERVENTION: Safely blocks unauthorized dose", async () => {

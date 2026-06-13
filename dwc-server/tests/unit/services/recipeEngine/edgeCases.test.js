@@ -169,21 +169,25 @@ describe("RecipeEngine - Edge Cases & Uncovered Branches", () => {
       "Micro",
       "dose_micro",
       expect.any(Number),
+      expect.objectContaining({ potId: "A" }),
     );
     expect(executeSpy).toHaveBeenCalledWith(
       "Bloom",
       "dose_bloom",
       expect.any(Number),
+      expect.objectContaining({ potId: "A" }),
     );
     expect(executeSpy).not.toHaveBeenCalledWith(
       "CalMag",
       "dose_calmag",
       expect.any(Number),
+      expect.objectContaining({ potId: "A" }),
     );
     expect(executeSpy).not.toHaveBeenCalledWith(
       "Gro",
       "dose_gro_fin_relay",
       expect.any(Number),
+      expect.objectContaining({ potId: "A" }),
     );
   });
 

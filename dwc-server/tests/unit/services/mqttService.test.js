@@ -32,9 +32,8 @@ describe("MqttService", () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    if (service) {
-      service.removeAllListeners();
-      if (service.client && service.client.end) service.client.end();
+    if (service && service.client && typeof service.client.end === "function") {
+      service.client.end(true);
     }
   });
 
@@ -314,9 +313,7 @@ describe("MqttService", () => {
     )[1];
     connectHandler();
     expect(mockSubscribe).toHaveBeenCalledTimes(3);
-    expect(mockSubscribe).toHaveBeenCalledWith(
-      "kevin/dwc/sensor_node_1/telemetry",
-    );
+    expect(mockSubscribe).toHaveBeenCalledWith("kevin/dwc/+/telemetry");
     expect(mockSubscribe).toHaveBeenCalledWith("kevin/dwc/pump_node_1/status");
     expect(mockSubscribe).toHaveBeenCalledWith("kevin/dwc/+/connection");
   });
@@ -358,9 +355,7 @@ describe("MqttService", () => {
       (c) => c[0] === "connect",
     )[1];
     connectHandler();
-    expect(mockClient.subscribe).toHaveBeenCalledWith(
-      "kevin/dwc/sensor_node_1/telemetry",
-    );
+    expect(mockClient.subscribe).toHaveBeenCalledWith("kevin/dwc/+/telemetry");
     expect(mockClient.subscribe).toHaveBeenCalledWith(
       "kevin/dwc/pump_node_1/status",
     );
