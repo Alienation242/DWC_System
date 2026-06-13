@@ -1,2 +1,23 @@
-/* You can add global styles to this file, and also import other style files */
-@import '@angular/material/prebuilt-themes/indigo-pink.css';
+/* Force the background and text to respect the active theme globally */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background-color: var(--bg, #121212);
+  color: var(--text, #ffffff);
+  font-family: var(--font-primary, 'Courier New', monospace);
+}
+
+/* Strip the default white backgrounds from Material components */
+.mat-mdc-card,
+.mat-drawer-container,
+.mat-drawer {
+  background-color: var(--panel, transparent) !important;
+  color: var(--text, inherit) !important;
+}
+
+/* Make the sidebar look like a distinct control panel */
+mat-sidenav {
+  border-right: 1px solid var(--muted, rgba(255, 255, 255, 0.1)) !important;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.2) 0%, transparent 100%);
+}

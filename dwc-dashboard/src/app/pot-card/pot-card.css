@@ -3,112 +3,121 @@
   display: flex;
   flex-direction: column;
   height: 80vh;
-  max-height: 800px;
-  background-color: var(--panel, #ffffff);
-  color: var(--text, #333333);
-  border: 1px solid var(--accent, rgba(0, 0, 0, 0.1));
+  max-height: 850px;
+  background-color: var(--panel, rgba(10, 10, 10, 0.6));
+  border: 1px solid var(--muted, #333);
+  border-radius: 8px;
+  /* Adds a subtle ambient glow behind the entire card */
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    inset 0 0 20px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px); /* Glass effect if background has texture */
 }
 
 .card-scroll-area {
   overflow-y: auto;
   overflow-x: hidden;
-  padding-right: 5px;
+  padding: 10px 15px;
   flex: 1;
 }
 
-/* Upgraded Dashboard Gauges */
+/* ----------------------------------
+   THE GAUGES: Emissive Readouts
+   ---------------------------------- */
 .gauge-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 15px;
-  margin: 15px 0 25px 0;
+  margin: 10px 0 25px 0;
 }
 
 .gauge {
-  background: var(--bg, rgba(0, 0, 0, 0.05));
-  border: 1px solid var(--muted, rgba(0, 0, 0, 0.1));
-  padding: 15px 10px;
-  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--muted, rgba(255, 255, 255, 0.1));
+  padding: 20px 10px;
+  border-radius: 6px;
   text-align: center;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
-  font-family: 'Courier New', Courier, monospace;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle scanline overlay just for the gauge screens */
+.gauge::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+    linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  background-size:
+    100% 4px,
+    3px 100%;
+  pointer-events: none;
+  opacity: 0.3;
+}
+
+.gauge > div:first-child {
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  color: var(--muted, #888);
+  text-transform: uppercase;
 }
 
 .gauge .value {
-  font-size: 2.2rem;
+  font-size: 2.8rem;
   font-weight: 900;
-  color: var(--accent, #1976d2);
-  margin: 8px 0;
-  text-shadow: 0 0 5px var(--bg-optimal-veg, transparent);
+  color: var(--accent, #4cbfa6);
+  margin: 10px 0;
+  /* The "Emissive" Trick */
+  text-shadow:
+    0 0 10px var(--accent, rgba(76, 191, 166, 0.5)),
+    0 0 20px var(--accent, rgba(76, 191, 166, 0.3));
 }
 
 .gauge .target {
-  font-size: 0.8rem;
-  color: var(--muted, #666);
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: var(--text, #aaa);
+  opacity: 0.7;
 }
 
-/* Warnings and Hardware Status */
+/* ----------------------------------
+   STATUS & CHARTS
+   ---------------------------------- */
 .tank-status {
   display: flex;
-  gap: 15px;
-  align-items: center;
   justify-content: center;
-  margin-bottom: 25px;
-  padding: 10px;
-  background: var(--bg, rgba(0, 0, 0, 0.05));
+  gap: 30px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 12px;
   border-radius: 4px;
-  font-weight: bold;
+  border-left: 4px solid var(--accent, #4cbfa6);
+  margin-bottom: 20px;
   font-size: 0.9rem;
-}
-
-.status-alert {
-  color: var(--danger, #f44336) !important;
-  animation: pulse 1.5s infinite;
-}
-
-/* Chart Formatting */
-.chart-container {
-  position: relative;
-  height: 240px;
-  width: 100%;
-  margin: 25px 0;
-  padding: 10px;
-  background: var(--bg, #fcfcfc);
-  border: 1px solid var(--muted, #eee);
-  border-radius: 6px;
-}
-
-.chart-title {
-  position: absolute;
-  top: 5px;
-  left: 15px;
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--text, #333);
-  text-transform: uppercase;
   letter-spacing: 1px;
 }
 
-/* Table Override for Dark Themes */
-table {
+.chart-container {
+  position: relative;
+  height: 220px;
   width: 100%;
-  background-color: var(--panel, #ffffff) !important;
-}
-th,
-td {
-  color: var(--text, #333) !important;
-  border-bottom: 1px solid var(--muted, rgba(0, 0, 0, 0.1)) !important;
+  margin: 25px 0;
+  padding: 15px 10px 10px 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
 }
 
-@keyframes pulse {
-  0% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-  100% {
-    opacity: 1;
-  }
+.chart-container h4 {
+  position: absolute;
+  top: 10px;
+  left: 15px;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted, #888);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  z-index: 10;
 }
