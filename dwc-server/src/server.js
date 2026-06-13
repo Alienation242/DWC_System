@@ -1,14 +1,21 @@
-const path = require("path");
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 const { PrismaClient } = require("@prisma/client");
+const path = require("path");
+const fs = require("fs").promises;
+
 const MqttService = require("./services/mqttService");
-const CalibrationService = require("./services/calibrationService");
 const RecipeEngine = require("./services/recipeEngine");
 
-const fs = require("fs").promises;
+// API route modules
+const calibrationRoutes = require("./api/calibration");
+const watchdogRoutes = require("./api/watchdog");
+const nutrientRoutes = require("./api/nutrient");
+const systemFactory = require("./api/system");
+const manualFactory = require("./api/manual");
+
 const app = express();
 const server = http.createServer(app);
 const prisma = new PrismaClient();
@@ -17,12 +24,10 @@ app.use(cors());
 app.use(express.json());
 
 // ==========================================
-// AUTO-SEED: creates SystemState & WatchdogConfigs if missing
+// AUTO-SEED (unchanged, keep as is)
 // ==========================================
 async function autoSeed() {
   console.log("🔍 Checking database state...");
-
-  // Load system config for watchdog defaults
   let systemConfig = {
     watchdog: { defaultDailyLimitMl: {}, defaultCooldownSecs: 30 },
   };
@@ -36,7 +41,6 @@ async function autoSeed() {
     );
   }
 
-  // 1. SystemState
   let state = await prisma.systemState.findUnique({ where: { id: 1 } });
   if (!state) {
     console.log("🌱 SystemState missing – creating default...");
@@ -51,8 +55,7 @@ async function autoSeed() {
     });
   }
 
-  if (process.env.NODE_ENV != "test") {
-    // 2. WatchdogConfigs for all known pumps
+  if (process.env.NODE_ENV !== "test") {
     const requiredPumps = [
       { name: "pH_Down", limit: 20.0 },
       { name: "pH_Up", limit: 20.0 },
@@ -63,7 +66,6 @@ async function autoSeed() {
       { name: "Finisher", limit: 250.0 },
       { name: "Water", limit: 20000.0 },
     ];
-
     for (const pump of requiredPumps) {
       let config = await prisma.watchdogConfig.findUnique({
         where: { pumpName: pump.name },
@@ -81,195 +83,9 @@ async function autoSeed() {
       }
     }
   }
-
   console.log("✅ Database ready.");
   return state;
 }
-
-// ==========================================
-// CALIBRATION API
-// ==========================================
-app.get("/api/calibration", async (req, res) => {
-  try {
-    const cal = await CalibrationService.load();
-    res.json(cal);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post("/api/calibration", async (req, res) => {
-  try {
-    const { pH, EC } = req.body;
-    const current = await CalibrationService.load();
-    if (pH) {
-      current.pH = {
-        ...current.pH,
-        ...pH,
-        lastCalibration: new Date().toISOString(),
-      };
-    }
-    if (EC) {
-      current.EC = {
-        ...current.EC,
-        ...EC,
-        lastCalibration: new Date().toISOString(),
-      };
-    }
-    await CalibrationService.save(current);
-    res.json(current);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ==========================================
-// NUTRIENT BRAND CONFIGURATION API
-// ==========================================
-const NUTRIENT_PROFILE_PATH = path.join(
-  process.cwd(),
-  "config",
-  "nutrient_profile.json",
-);
-
-app.get("/api/nutrient-config", async (req, res) => {
-  try {
-    const data = await fs.readFile(NUTRIENT_PROFILE_PATH, "utf8");
-    res.json(JSON.parse(data));
-  } catch (err) {
-    res.status(500).json({ error: "Failed to load nutrient profile." });
-  }
-});
-
-app.post("/api/nutrient-config", async (req, res) => {
-  try {
-    const newConfig = req.body;
-    await fs.writeFile(
-      NUTRIENT_PROFILE_PATH,
-      JSON.stringify(newConfig, null, 2),
-    );
-    res.json({ success: true, config: newConfig });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to save nutrient profile." });
-  }
-});
-
-// ------------------ Watchdog API ------------------
-app.get("/api/watchdog/config", async (req, res) => {
-  const configs = await prisma.watchdogConfig.findMany();
-  res.json(configs);
-});
-
-app.post("/api/watchdog/config", async (req, res) => {
-  const { pumpName, dailyLimitMl, cooldownSecs, enabled } = req.body;
-  const updated = await prisma.watchdogConfig.upsert({
-    where: { pumpName },
-    update: { dailyLimitMl, cooldownSecs, enabled },
-    create: { pumpName, dailyLimitMl, cooldownSecs, enabled },
-  });
-  res.json(updated);
-});
-
-// ------------------ System control ------------------
-app.get("/api/system/state", async (req, res) => {
-  const state = await prisma.systemState.findUnique({ where: { id: 1 } });
-  res.json(state);
-});
-
-app.post("/api/system/advance-day", async (req, res) => {
-  const state = await prisma.systemState.update({
-    where: { id: 1 },
-    data: { currentDay: { increment: 1 } },
-  });
-  res.json({ currentDay: state.currentDay });
-});
-
-app.post("/api/system/override", async (req, res) => {
-  const { mode } = req.body; // "AUTOMATED" or "MANUAL_OVERRIDE"
-  const state = await prisma.systemState.update({
-    where: { id: 1 },
-    data: { automationMode: mode },
-  });
-  res.json({ automationMode: state.automationMode });
-});
-
-app.get("/api/system/target", async (req, res) => {
-  try {
-    const systemState = await prisma.systemState.findFirst();
-    if (!systemState) return res.status(404).json({ error: "No system state" });
-    const { strainProfile } = await engine._loadTickConfigs(systemState);
-    const dynamic = engine.getDynamicTarget(
-      strainProfile,
-      systemState.currentDay || 1,
-      null,
-    );
-    res.json({ targetPPM: dynamic.targetPPM, phase: dynamic.phase });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ==========================================
-// MANUAL CONTROL ENDPOINTS
-// ==========================================
-app.post("/api/manual/stop", async (req, res) => {
-  try {
-    const seq = hardwareComms.nextSeq();
-    hardwareComms.sendCommand("stop", 0, "None", seq);
-    res.json({ success: true, message: "Emergency stop sent" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post("/api/manual/dose", async (req, res) => {
-  const { pumpName, actionStr, ml } = req.body;
-  if (!pumpName || !actionStr || !ml) {
-    return res.status(400).json({ error: "Missing pumpName, actionStr or ml" });
-  }
-
-  try {
-    // Check if this is a pH dose
-    const isPhDose = pumpName === "pH_Down" || pumpName === "pH_Up";
-    let dosedTotal = 0;
-
-    if (isPhDose) {
-      // First dose carrier water (250ml fixed)
-      const waterDosed = await engine.executePumpAndWait(
-        "Water",
-        "dose_water",
-        200,
-      );
-      // Then dose the pH solution
-      const phDosed = await engine.executePumpAndWait(pumpName, actionStr, ml);
-      dosedTotal = waterDosed + phDosed;
-      res.json({
-        success: true,
-        dosedMl: dosedTotal,
-        details: { water: waterDosed, ph: phDosed },
-      });
-    } else {
-      // Normal dose (Water, nutrients, etc.)
-      const dosed = await engine.executePumpAndWait(pumpName, actionStr, ml);
-      res.json({ success: true, dosedMl: dosed });
-    }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post("/api/manual/deliver", async (req, res) => {
-  const { target, volumeMl } = req.body;
-  if (!target || !volumeMl) {
-    return res.status(400).json({ error: "Missing target or volumeMl" });
-  }
-  try {
-    await engine._deliverToPot(volumeMl, target);
-    res.json({ success: true, message: "Delivery completed" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // ------------------ WebSockets ------------------
 const io = new Server(server, { cors: { origin: "*" } });
@@ -283,6 +99,26 @@ io.on("connection", (socket) => {
 // ------------------ MQTT & Engine ------------------
 const hardwareComms = new MqttService(io);
 const engine = new RecipeEngine(hardwareComms);
+
+// ==========================================
+// API ROUTES – direct registration (clean & simple)
+// ==========================================
+app.use("/api/calibration", calibrationRoutes);
+app.use("/api/watchdog", watchdogRoutes);
+app.use("/api/nutrient-config", nutrientRoutes);
+
+// Routes that need engine or hardwareComms
+app.use("/api/system", systemFactory(engine));
+app.use("/api/manual", manualFactory(engine, hardwareComms));
+
+// Health check
+app.get("/api/status", (req, res) => {
+  res.json({
+    status: "Online",
+    mode: "Headless DWC Server - Autonomous Loop Active",
+    hardware: hardwareComms.deviceRegistry,
+  });
+});
 
 // ==========================================
 // TRIGGER FIRST TICK ON FIRST TELEMETRY
@@ -300,20 +136,11 @@ hardwareComms.on("telemetry", () => {
 
 // ------------------ Cron Loop ------------------
 const TICK_INTERVAL_MS = 5 * 60 * 1000;
-
 async function runEngineLoop() {
   await engine.executeTick();
   setTimeout(runEngineLoop, TICK_INTERVAL_MS);
 }
 
-// ------------------ Health Check ------------------
-app.get("/api/status", (req, res) => {
-  res.json({
-    status: "Online",
-    mode: "Headless DWC Server - Autonomous Loop Active",
-    hardware: hardwareComms.deviceRegistry,
-  });
-});
 // ------------------ Start Server ------------------
 const PORT = process.env.PORT || 3000;
 
@@ -343,7 +170,6 @@ if (require.main === module) {
     })
     .catch((err) => {
       console.error("❌ Failed to seed database on startup:", err);
-      /* istanbul ignore next */
       process.exit(1);
     });
 }
