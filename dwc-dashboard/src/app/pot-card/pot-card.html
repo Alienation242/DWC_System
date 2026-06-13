@@ -35,24 +35,24 @@
 
       <mat-divider></mat-divider>
 
-      <!-- pH Chart -->
       <div class="chart-container">
-        <h4>pH Trend</h4>
+        <h4 class="chart-title">pH Trend</h4>
         <canvas
           baseChart
+          #phCanvas="base-chart"
           [data]="phChartData"
-          [options]="phChartOptions"
+          [options]="chartOptions"
           [type]="lineChartType"
         ></canvas>
       </div>
 
-      <!-- EC Chart -->
       <div class="chart-container">
-        <h4>EC Trend (µS/cm)</h4>
+        <h4 class="chart-title">EC Trend (µS/cm)</h4>
         <canvas
           baseChart
+          #ecCanvas="base-chart"
           [data]="ecChartData"
-          [options]="ecChartOptions"
+          [options]="chartOptions"
           [type]="lineChartType"
         ></canvas>
       </div>
