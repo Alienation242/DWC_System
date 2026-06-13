@@ -38,16 +38,17 @@ export class PotDetailComponent implements OnInit, OnDestroy {
   @ViewChild('phCanvas') phChart?: BaseChartDirective;
   @ViewChild('ecCanvas') ecChart?: BaseChartDirective;
 
-  // Stripped-down chart configurations
   public chartOptions: ChartConfiguration<'line'>['options'] = {
     responsive: true,
+    animation: false,
     maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false }, // <-- NO LEGEND
-    },
+    plugins: { legend: { display: false } },
     elements: {
-      point: { radius: 0, hitRadius: 10, hoverRadius: 5 }, // <-- NO DOTS on the line
-      line: { tension: 0.3, borderWidth: 3 },
+      point: { radius: 0, hitRadius: 10, hoverRadius: 5 },
+      line: {
+        tension: 0, // <-- FIX 1: This makes the line perfectly straight (removes arcs)
+        borderWidth: 2,
+      },
     },
     scales: {
       x: {
@@ -59,15 +60,14 @@ export class PotDetailComponent implements OnInit, OnDestroy {
   };
 
   public phChartData: ChartConfiguration<'line'>['data'] = {
-    datasets: [
-      { data: [], borderColor: '#4cbfa6', backgroundColor: 'rgba(76, 191, 166, 0.1)', fill: true },
-    ],
+    // FIX 2: Set fill to false to remove the blob under the arc
+    datasets: [{ data: [], borderColor: '#4cbfa6', fill: false }],
     labels: [],
   };
+
   public ecChartData: ChartConfiguration<'line'>['data'] = {
-    datasets: [
-      { data: [], borderColor: '#dfb953', backgroundColor: 'rgba(223, 185, 83, 0.1)', fill: true },
-    ],
+    // FIX 3: Set fill to false and strictly use the BioShock Gold/Brass accent
+    datasets: [{ data: [], borderColor: '#dfb953', fill: false }],
     labels: [],
   };
 
@@ -101,10 +101,27 @@ export class PotDetailComponent implements OnInit, OnDestroy {
 
     this.api.getTelemetryHistory(this.potId, 50).subscribe((history) => {
       history.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      this.phChartData.labels = history.map((d) => new Date(d.timestamp).toLocaleTimeString());
-      this.phChartData.datasets[0].data = history.map((d) => d.realPH);
-      this.ecChartData.labels = history.map((d) => new Date(d.timestamp).toLocaleTimeString());
-      this.ecChartData.datasets[0].data = history.map((d) => d.realEC);
+
+      const parsedLabels: string[] = [];
+      const parsedPh: number[] = [];
+      const parsedEc: number[] = [];
+
+      history.forEach((d) => {
+        // FIX 4: The Timezone UTC bug!
+        // If the database timestamp is missing the 'Z', JS thinks it's local time (which causes the 2-hour gap in CEST).
+        // Appending 'Z' forces it to parse as UTC, realigning it perfectly with your live local time.
+        const safeStr = d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp + 'Z';
+        parsedLabels.push(new Date(safeStr).toLocaleTimeString());
+        parsedPh.push(d.realPH);
+        parsedEc.push(d.realEC);
+      });
+
+      this.phChartData.labels = parsedLabels;
+      this.phChartData.datasets[0].data = parsedPh;
+
+      this.ecChartData.labels = parsedLabels;
+      this.ecChartData.datasets[0].data = parsedEc;
+
       this.phChart?.update();
       this.ecChart?.update();
       this.historyLoaded = true;
@@ -113,8 +130,14 @@ export class PotDetailComponent implements OnInit, OnDestroy {
 
   pushLivePoint(data: Telemetry) {
     const timeNow = new Date().toLocaleTimeString();
+
+    // Prevent duplicate timestamps if the socket fires super rapidly
+    const lastLabel = this.phChartData.labels?.[this.phChartData.labels.length - 1];
+    if (lastLabel === timeNow) return;
+
     this.phChartData.labels?.push(timeNow);
     this.phChartData.datasets[0].data.push(data.realPH);
+
     this.ecChartData.labels?.push(timeNow);
     this.ecChartData.datasets[0].data.push(data.realEC);
 
@@ -124,6 +147,7 @@ export class PotDetailComponent implements OnInit, OnDestroy {
       this.ecChartData.labels?.shift();
       this.ecChartData.datasets[0].data.shift();
     }
+
     this.phChart?.update();
     this.ecChart?.update();
   }
