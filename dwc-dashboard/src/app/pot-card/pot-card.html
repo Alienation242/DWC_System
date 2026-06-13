@@ -7,54 +7,34 @@
 
   <div class="card-scroll-area">
     <mat-card-content>
-      <!-- Live Gauges -->
       <div class="gauge-row">
         <div class="gauge">
-          <div>pH</div>
+          <div class="gauge-title">pH</div>
           <div class="value">{{ telemetry?.realPH | number: '1.2-2' }}</div>
           <div class="target">Target: 5.8</div>
         </div>
-        <div class="gauge">
-          <div>EC (µS/cm)</div>
-          <div class="value">{{ telemetry?.realEC | number: '1.0-0' }}</div>
+
+        <div class="gauge clickable-gauge" (click)="toggleEcPpm()">
+          <div class="gauge-title">{{ showingPPM ? 'PPM' : 'EC (µS/cm)' }}</div>
+          <div class="value">
+            {{ showingPPM ? (ppm | number: '1.0-0') : (telemetry?.realEC | number: '1.0-0') }}
+          </div>
+          <div class="target">
+            Target: {{ showingPPM ? (targetPPM | number: '1.0-0') : (targetEC | number: '1.0-0') }}
+          </div>
+          <div class="click-hint">CLICK TO TOGGLE</div>
         </div>
-        <div class="gauge">
-          <div>PPM</div>
-          <div class="value">{{ ppm | number: '1.0-0' }}</div>
-          <div class="target">Target: {{ targetPPM | number: '1.0-0' }}</div>
+      </div>
+
+      <div class="led-panel">
+        <div class="led-container">
+          <div class="led" [class.active-danger]="telemetry?.isTankEmpty"></div>
+          <span class="led-label">TANK EMPTY</span>
         </div>
-      </div>
-
-      <!-- Tank Status -->
-      <div class="tank-status">
-        <mat-icon [color]="telemetry?.isTankEmpty ? 'warn' : 'primary'">water_drop</mat-icon>
-        Tank Empty: {{ telemetry?.isTankEmpty ? '⚠️ YES' : 'No' }}
-        <mat-icon [color]="telemetry?.isTankOverflowing ? 'warn' : 'primary'">overflow</mat-icon>
-        Overflow: {{ telemetry?.isTankOverflowing ? '⚠️ YES' : 'No' }}
-      </div>
-
-      <mat-divider></mat-divider>
-
-      <div class="chart-container">
-        <h4 class="chart-title">pH Trend</h4>
-        <canvas
-          baseChart
-          #phCanvas="base-chart"
-          [data]="phChartData"
-          [options]="chartOptions"
-          [type]="lineChartType"
-        ></canvas>
-      </div>
-
-      <div class="chart-container">
-        <h4 class="chart-title">EC Trend (µS/cm)</h4>
-        <canvas
-          baseChart
-          #ecCanvas="base-chart"
-          [data]="ecChartData"
-          [options]="chartOptions"
-          [type]="lineChartType"
-        ></canvas>
+        <div class="led-container">
+          <div class="led" [class.active-warning]="telemetry?.isTankOverflowing"></div>
+          <span class="led-label">OVERFLOW</span>
+        </div>
       </div>
 
       <mat-divider></mat-divider>

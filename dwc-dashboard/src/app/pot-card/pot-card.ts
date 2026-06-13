@@ -42,9 +42,18 @@ export class PotCardComponent implements OnInit, OnDestroy {
   phase = '';
   recentDoses: any[] = [];
   private subs = new Subscription();
+  showingPPM: boolean = false;
 
   get ppm() {
     return this.telemetry ? this.telemetry.realEC * 0.5 : 0;
+  }
+
+  get targetEC() {
+    return this.targetPPM * 2;
+  }
+
+  toggleEcPpm() {
+    this.showingPPM = !this.showingPPM;
   }
 
   public phChartData: ChartConfiguration<'line'>['data'] = {

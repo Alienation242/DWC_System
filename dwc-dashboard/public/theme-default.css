@@ -3,32 +3,18 @@
    ========================================== */
 
 :root {
-  --bg: #0b0c10;
-  --panel: #14161c;
-  --text: #c5c6c7;
-  --accent: #45a29e;
-  --green: #17b978;
-  --danger: #f1404b;
-  --warning: #f2a900;
-  --muted: #5a6268;
-  --flower: #9d4edd;
-
-  /* Mathematical State Variables (replaces JS hex injections) */
-  --sub-optimal: #3b434f;
-  --optimal-veg: #45a29e;
-  --optimal-flw: #17b978;
-  --text-optimal: #66fcf1;
-
-  /* Background Box States */
-  --bg-panel: #14161c;
-  --bg-danger: #3e0c13;
-  --bg-warning: #331a00;
-  --bg-optimal-veg: #0a192f;
-  --bg-optimal-flw: #06261b;
+  --bg: #eef2f6; /* Slightly darker grey for the app background */
+  --panel: #ffffff; /* Pure white for the cards */
+  --text: #1f2a3a; /* Deep slate for high-contrast readability */
+  --accent: #0284c7; /* Professional blue */
+  --muted: #64748b; /* Readable mid-grey for labels */
+  --danger: #dc2626;
+  --warning: #f59e0b;
+  --font-primary: 'Inter', 'Segoe UI', sans-serif;
 }
 
 body {
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   background-color: var(--bg);
   color: var(--text);
 }
@@ -50,10 +36,10 @@ h1 {
 }
 .tick-label {
   color: #fff;
-  font-family: "Courier New", monospace;
+  font-family: 'Courier New', monospace;
 }
 
-input[type="range"]#currentDay::-webkit-slider-thumb {
+input[type='range']#currentDay::-webkit-slider-thumb {
   background: #ffffff;
   border: 4px solid #0b0c10;
 }
@@ -189,23 +175,23 @@ select.custom-select {
   text-shadow: 0 0 2px rgba(255, 255, 255, 0.7);
 }
 
-input[type="range"].std-range {
+input[type='range'].std-range {
   background: #1f2833;
 }
-input[type="range"].std-range::-webkit-slider-thumb {
+input[type='range'].std-range::-webkit-slider-thumb {
   background: #ffffff;
   border: 3px solid #0b0c10;
 }
-input[type="number"].standard-num {
+input[type='number'].standard-num {
   background: #0b0c10;
   border: 1px solid var(--accent);
   color: #66fcf1;
 }
-input[type="number"].editable-metric {
+input[type='number'].editable-metric {
   border-bottom: 1px dashed var(--flower);
   color: var(--flower);
 }
-input[type="number"].editable-metric:focus {
+input[type='number'].editable-metric:focus {
   background: rgba(255, 255, 255, 0.05);
 }
 .readout {

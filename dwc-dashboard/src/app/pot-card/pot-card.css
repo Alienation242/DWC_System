@@ -17,31 +17,57 @@
 .card-scroll-area {
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 10px 15px;
+  padding-right: 15px; /* Added padding to make room for the new scrollbar */
   flex: 1;
 }
 
 /* ----------------------------------
-   THE GAUGES: Emissive Readouts
+   CUSTOM SCROLLBAR
+   ---------------------------------- */
+.card-scroll-area::-webkit-scrollbar {
+  width: 6px;
+}
+.card-scroll-area::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+}
+.card-scroll-area::-webkit-scrollbar-thumb {
+  background: var(--muted, rgba(0, 0, 0, 0.2));
+  border-radius: 10px;
+}
+.card-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: var(--accent, #4cbfa6);
+}
+
+/* ----------------------------------
+   THE GAUGES
    ---------------------------------- */
 .gauge-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-direction: column; /* Stacks them to span the complete width */
   gap: 15px;
   margin: 10px 0 25px 0;
+  width: 100%;
 }
 
 .gauge {
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--muted, rgba(255, 255, 255, 0.1));
+  background: rgba(0, 0, 0, 0.03); /* Lighter background for default theme compatibility */
+  border: 1px solid var(--muted, rgba(0, 0, 0, 0.1));
   padding: 20px 10px;
   border-radius: 6px;
   text-align: center;
   position: relative;
   overflow: hidden;
+  transition: all 0.2s ease;
+
+  /* Lock the height so it NEVER jumps when text changes */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 130px;
+  box-sizing: border-box;
 }
 
-/* Subtle scanline overlay just for the gauge screens */
 .gauge::after {
   content: '';
   position: absolute;
@@ -49,21 +75,44 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background:
-    linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
-    linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-  background-size:
-    100% 4px,
-    3px 100%;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.05) 50%);
+  background-size: 100% 4px;
   pointer-events: none;
-  opacity: 0.3;
+  opacity: 0.5;
 }
 
-.gauge > div:first-child {
+/* Interactive Gauge Styles */
+.clickable-gauge {
+  cursor: pointer;
+}
+.clickable-gauge:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: var(--accent, #4cbfa6);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.click-hint {
+  position: absolute;
+  bottom: 6px;
+  left: 0;
+  right: 0;
+  font-size: 0.65rem;
+  color: var(--muted, #666);
+  opacity: 0;
+  transition: opacity 0.2s;
+  font-weight: bold;
+}
+.clickable-gauge:hover .click-hint {
+  opacity: 1;
+}
+
+.gauge-title {
   font-size: 0.85rem;
   letter-spacing: 2px;
   color: var(--muted, #888);
   text-transform: uppercase;
+  min-height: 20px; /* Prevents vertical collapse */
 }
 
 .gauge .value {
@@ -71,16 +120,27 @@
   font-weight: 900;
   color: var(--accent, #4cbfa6);
   margin: 10px 0;
-  /* The "Emissive" Trick */
-  text-shadow:
-    0 0 10px var(--accent, rgba(76, 191, 166, 0.5)),
-    0 0 20px var(--accent, rgba(76, 191, 166, 0.3));
+  text-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
 }
 
 .gauge .target {
   font-size: 0.75rem;
   color: var(--text, #aaa);
   opacity: 0.7;
+}
+
+/* ----------------------------------
+   TABLE READABILITY FIX
+   ---------------------------------- */
+table {
+  width: 100%;
+  background-color: var(--panel, #ffffff) !important;
+}
+th,
+td {
+  /* Force table text to strictly obey the theme text color */
+  color: var(--text, #333333) !important;
+  border-bottom: 1px solid rgba(150, 150, 150, 0.2) !important;
 }
 
 /* ----------------------------------
