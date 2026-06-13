@@ -1,10 +1,10 @@
-import { Component, Input, OnInit, OnDestroy, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { MatDividerModule } from '@angular/material/divider';
+import { MatTableModule } from '@angular/material/table';
 import { BaseChartDirective } from 'ng2-charts';
 import { Chart, ChartConfiguration, registerables } from 'chart.js';
 import { SocketService, Telemetry } from '../services/socket.service';
@@ -14,98 +14,72 @@ import { Subscription } from 'rxjs';
 Chart.register(...registerables);
 
 @Component({
-  selector: 'app-pot-card',
+  selector: 'app-pot-detail',
   standalone: true,
-  templateUrl: './pot-card.html',
-  styleUrls: ['./pot-card.css'],
+  templateUrl: './pot-detail.html',
+  styleUrls: ['./pot-detail.css'],
   imports: [
     CommonModule,
     RouterModule,
     MatCardModule,
     MatIconModule,
     MatButtonModule,
-    MatDividerModule,
+    MatTableModule,
+    BaseChartDirective,
   ],
 })
-export class PotCardComponent implements OnInit, OnDestroy {
-  @Input() potId!: string;
+export class PotDetailComponent implements OnInit, OnDestroy {
+  potId!: string;
+  telemetry: Telemetry | null = null;
+  recentDoses: any[] = [];
+  private subs = new Subscription();
 
-  // Grab the charts from the HTML so we can force them to update
   @ViewChild('phCanvas') phChart?: BaseChartDirective;
   @ViewChild('ecCanvas') ecChart?: BaseChartDirective;
 
-  telemetry: Telemetry | null = null;
-  targetPPM = 0;
-  phase = '';
-  recentDoses: any[] = [];
-  private subs = new Subscription();
-  showingPPM: boolean = false;
-
-  get ppm() {
-    return this.telemetry ? this.telemetry.realEC * 0.5 : 0;
-  }
-
-  get targetEC() {
-    return this.targetPPM * 2;
-  }
-
-  toggleEcPpm() {
-    this.showingPPM = !this.showingPPM;
-  }
+  // Stripped-down chart configurations
+  public chartOptions: ChartConfiguration<'line'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false }, // <-- NO LEGEND
+    },
+    elements: {
+      point: { radius: 0, hitRadius: 10, hoverRadius: 5 }, // <-- NO DOTS on the line
+      line: { tension: 0.3, borderWidth: 3 },
+    },
+    scales: {
+      x: {
+        ticks: { color: 'var(--text)', maxTicksLimit: 8 },
+        grid: { color: 'rgba(150,150,150,0.1)' },
+      },
+      y: { ticks: { color: 'var(--text)' }, grid: { color: 'rgba(150,150,150,0.1)' } },
+    },
+  };
 
   public phChartData: ChartConfiguration<'line'>['data'] = {
     datasets: [
-      {
-        data: [],
-        label: 'pH',
-        borderColor: '#4cbfa6',
-        backgroundColor: 'rgba(76, 191, 166, 0.2)',
-        fill: true,
-        tension: 0.4,
-      },
+      { data: [], borderColor: '#4cbfa6', backgroundColor: 'rgba(76, 191, 166, 0.1)', fill: true },
     ],
     labels: [],
   };
   public ecChartData: ChartConfiguration<'line'>['data'] = {
     datasets: [
-      {
-        data: [],
-        label: 'EC (µS/cm)',
-        borderColor: '#dfb953',
-        backgroundColor: 'rgba(223, 185, 83, 0.2)',
-        fill: true,
-        tension: 0.4,
-      },
+      { data: [], borderColor: '#dfb953', backgroundColor: 'rgba(223, 185, 83, 0.1)', fill: true },
     ],
     labels: [],
   };
 
-  // Upgraded Chart Options to look good in dark mode
-  public chartOptions: ChartConfiguration<'line'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { labels: { color: 'var(--text, #999)' } } },
-    scales: {
-      x: {
-        ticks: { color: 'var(--text, #999)', maxTicksLimit: 6 },
-        grid: { color: 'rgba(150, 150, 150, 0.1)' },
-      },
-      y: {
-        ticks: { color: 'var(--text, #999)' },
-        grid: { color: 'rgba(150, 150, 150, 0.1)' },
-      },
-    },
-  };
-
-  public lineChartType: 'line' = 'line';
   displayedColumns = ['timestamp', 'pumpName', 'ml', 'status'];
 
   constructor(
+    private route: ActivatedRoute,
     private socket: SocketService,
     private api: ApiService,
   ) {}
 
   ngOnInit() {
+    this.potId = this.route.snapshot.paramMap.get('id') || 'A';
     this.loadData();
 
     this.subs.add(
@@ -120,21 +94,14 @@ export class PotCardComponent implements OnInit, OnDestroy {
 
   loadData() {
     this.api.getLatestTelemetry(this.potId).subscribe((data) => (this.telemetry = data));
-    this.refreshHistory();
-    this.api.getRecentDoses(this.potId, 10).subscribe((data) => (this.recentDoses = data));
-    this.loadGlobalTarget();
-  }
+    this.api.getRecentDoses(this.potId, 20).subscribe((data) => (this.recentDoses = data));
 
-  refreshHistory() {
-    this.api.getTelemetryHistory(this.potId, 30).subscribe((history) => {
+    this.api.getTelemetryHistory(this.potId, 50).subscribe((history) => {
       history.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
       this.phChartData.labels = history.map((d) => new Date(d.timestamp).toLocaleTimeString());
       this.phChartData.datasets[0].data = history.map((d) => d.realPH);
-
       this.ecChartData.labels = history.map((d) => new Date(d.timestamp).toLocaleTimeString());
       this.ecChartData.datasets[0].data = history.map((d) => d.realEC);
-
       this.phChart?.update();
       this.ecChart?.update();
     });
@@ -142,30 +109,19 @@ export class PotCardComponent implements OnInit, OnDestroy {
 
   pushLivePoint(data: Telemetry) {
     const timeNow = new Date().toLocaleTimeString();
-
     this.phChartData.labels?.push(timeNow);
     this.phChartData.datasets[0].data.push(data.realPH);
-
     this.ecChartData.labels?.push(timeNow);
     this.ecChartData.datasets[0].data.push(data.realEC);
 
-    if (this.phChartData.labels!.length > 30) {
+    if (this.phChartData.labels!.length > 50) {
       this.phChartData.labels?.shift();
       this.phChartData.datasets[0].data.shift();
-
       this.ecChartData.labels?.shift();
       this.ecChartData.datasets[0].data.shift();
     }
-
     this.phChart?.update();
     this.ecChart?.update();
-  }
-
-  loadGlobalTarget() {
-    this.api.getTarget().subscribe((t) => {
-      this.targetPPM = t.targetPPM;
-      this.phase = t.phase;
-    });
   }
 
   ngOnDestroy() {

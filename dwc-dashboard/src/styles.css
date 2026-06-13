@@ -16,6 +16,25 @@ body {
   color: var(--text, inherit) !important;
 }
 
+.mat-mdc-table,
+table.mat-table {
+  background-color: var(--panel, transparent) !important;
+}
+
+.mat-mdc-header-cell,
+.mat-mdc-cell,
+td.mat-cell,
+th.mat-header-cell {
+  color: var(--text, #ffffff) !important;
+  border-bottom: 1px solid var(--muted, rgba(255, 255, 255, 0.1)) !important;
+  font-family: var(--font-primary, inherit) !important;
+}
+
+/* Add a hover effect to table rows for readability */
+.mat-mdc-row:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
 /* Make the sidebar look like a distinct control panel */
 mat-sidenav {
   border-right: 1px solid var(--muted, rgba(255, 255, 255, 0.1)) !important;

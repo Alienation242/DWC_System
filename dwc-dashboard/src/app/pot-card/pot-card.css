@@ -1,183 +1,175 @@
-.pot-card {
+/* =========================================
+   SUMMARY SQUARE (MASTER VIEW)
+   ========================================= */
+.pot-card.summary-square {
   margin: 0;
   display: flex;
   flex-direction: column;
-  height: 80vh;
-  max-height: 850px;
+  aspect-ratio: 1 / 1; /* Forces the perfect square shape */
   background-color: var(--panel, rgba(10, 10, 10, 0.6));
   border: 1px solid var(--muted, #333);
   border-radius: 8px;
-  /* Adds a subtle ambient glow behind the entire card */
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.5),
-    inset 0 0 20px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px); /* Glass effect if background has texture */
-}
-
-.card-scroll-area {
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 15px; /* Added padding to make room for the new scrollbar */
-  flex: 1;
-}
-
-/* ----------------------------------
-   CUSTOM SCROLLBAR
-   ---------------------------------- */
-.card-scroll-area::-webkit-scrollbar {
-  width: 6px;
-}
-.card-scroll-area::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 10px;
-}
-.card-scroll-area::-webkit-scrollbar-thumb {
-  background: var(--muted, rgba(0, 0, 0, 0.2));
-  border-radius: 10px;
-}
-.card-scroll-area::-webkit-scrollbar-thumb:hover {
-  background: var(--accent, #4cbfa6);
-}
-
-/* ----------------------------------
-   THE GAUGES
-   ---------------------------------- */
-.gauge-row {
-  display: flex;
-  flex-direction: column; /* Stacks them to span the complete width */
-  gap: 15px;
-  margin: 10px 0 25px 0;
-  width: 100%;
-}
-
-.gauge {
-  background: rgba(0, 0, 0, 0.03); /* Lighter background for default theme compatibility */
-  border: 1px solid var(--muted, rgba(0, 0, 0, 0.1));
-  padding: 20px 10px;
-  border-radius: 6px;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
+  cursor: pointer;
   transition: all 0.2s ease;
+  position: relative;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.2),
+    inset 0 0 10px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(4px);
+}
 
-  /* Lock the height so it NEVER jumps when text changes */
+/* Hover effect so it feels like a physical button */
+.pot-card.summary-square:hover {
+  transform: translateY(-5px);
+  border-color: var(--accent, #4cbfa6);
+  box-shadow:
+    0 10px 25px rgba(0, 0, 0, 0.4),
+    inset 0 0 15px rgba(0, 0, 0, 0.2);
+}
+
+.summary-content {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  min-height: 130px;
-  box-sizing: border-box;
+  justify-content: space-between;
+  padding: 15px !important;
 }
 
-.gauge::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.05) 50%);
-  background-size: 100% 4px;
-  pointer-events: none;
-  opacity: 0.5;
+/* ----------------------------------
+   READOUT GAUGES (pH & EC)
+   ---------------------------------- */
+.gauge-column {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 10px;
 }
 
-/* Interactive Gauge Styles */
-.clickable-gauge {
-  cursor: pointer;
-}
-.clickable-gauge:hover {
-  background: rgba(0, 0, 0, 0.08);
-  border-color: var(--accent, #4cbfa6);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-}
-
-.click-hint {
-  position: absolute;
-  bottom: 6px;
-  left: 0;
-  right: 0;
-  font-size: 0.65rem;
-  color: var(--muted, #666);
-  opacity: 0;
-  transition: opacity 0.2s;
-  font-weight: bold;
-}
-.clickable-gauge:hover .click-hint {
-  opacity: 1;
+.summary-readout {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 15px 20px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.gauge-title {
-  font-size: 0.85rem;
+.summary-readout .label {
+  font-size: 1.1rem;
   letter-spacing: 2px;
   color: var(--muted, #888);
   text-transform: uppercase;
-  min-height: 20px; /* Prevents vertical collapse */
+  font-weight: bold;
 }
 
-.gauge .value {
+.summary-readout .value {
   font-size: 2.8rem;
   font-weight: 900;
   color: var(--accent, #4cbfa6);
-  margin: 10px 0;
-  text-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
-}
-
-.gauge .target {
-  font-size: 0.75rem;
-  color: var(--text, #aaa);
-  opacity: 0.7;
+  text-shadow: 0 0 12px var(--accent, rgba(76, 191, 166, 0.4));
+  font-family: var(--font-primary, 'Courier New', monospace);
 }
 
 /* ----------------------------------
-   TABLE READABILITY FIX
+   HARDWARE LED LIGHTS
    ---------------------------------- */
-table {
-  width: 100%;
-  background-color: var(--panel, #ffffff) !important;
-}
-th,
-td {
-  /* Force table text to strictly obey the theme text color */
-  color: var(--text, #333333) !important;
-  border-bottom: 1px solid rgba(150, 150, 150, 0.2) !important;
-}
-
-/* ----------------------------------
-   STATUS & CHARTS
-   ---------------------------------- */
-.tank-status {
+.led-panel {
   display: flex;
-  justify-content: center;
-  gap: 30px;
+  justify-content: space-evenly;
   background: rgba(0, 0, 0, 0.3);
-  padding: 12px;
-  border-radius: 4px;
-  border-left: 4px solid var(--accent, #4cbfa6);
-  margin-bottom: 20px;
-  font-size: 0.9rem;
-  letter-spacing: 1px;
-}
-
-.chart-container {
-  position: relative;
-  height: 220px;
-  width: 100%;
-  margin: 25px 0;
-  padding: 15px 10px 10px 10px;
-  background: rgba(0, 0, 0, 0.2);
+  padding: 15px;
+  border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
+  margin-bottom: 25px; /* Leaves space for the click hint below */
 }
 
-.chart-container h4 {
-  position: absolute;
-  top: 10px;
-  left: 15px;
-  margin: 0;
+.led-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The physical lightbulb (Off state) */
+.led {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.8),
+    0 1px 1px rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.8);
+  transition: all 0.1s ease;
+}
+
+/* Lightbulb (On state - Danger/Empty) */
+.led.active-danger {
+  background: var(--danger, #ff2a00);
+  box-shadow:
+    0 0 15px var(--danger, #ff2a00),
+    inset 0 2px 4px rgba(255, 255, 255, 0.4);
+  border: 1px solid transparent;
+  animation: pulse-danger 1s infinite alternate;
+}
+
+/* Lightbulb (On state - Warning/Overflow) */
+.led.active-warning {
+  background: var(--warning, #ffae00);
+  box-shadow:
+    0 0 15px var(--warning, #ffae00),
+    inset 0 2px 4px rgba(255, 255, 255, 0.4);
+  border: 1px solid transparent;
+  animation: pulse-warning 0.5s infinite alternate;
+}
+
+.led-label {
   font-size: 0.8rem;
+  font-weight: bold;
+  letter-spacing: 1px;
   color: var(--muted, #888);
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  z-index: 10;
+}
+
+@keyframes pulse-danger {
+  from {
+    opacity: 1;
+    box-shadow:
+      0 0 20px var(--danger),
+      inset 0 2px 4px rgba(255, 255, 255, 0.6);
+  }
+  to {
+    opacity: 0.5;
+    box-shadow:
+      0 0 8px var(--danger),
+      inset 0 2px 4px rgba(255, 255, 255, 0.2);
+  }
+}
+
+@keyframes pulse-warning {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.3;
+  }
+}
+
+/* ----------------------------------
+   INTERACTION HINTS
+   ---------------------------------- */
+.click-hint {
+  position: absolute;
+  bottom: 12px;
+  right: 15px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: var(--muted, #666);
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.summary-square:hover .click-hint {
+  color: var(--accent, #4cbfa6);
+  opacity: 1;
 }

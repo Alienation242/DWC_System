@@ -1,0 +1,68 @@
+<div class="detail-header">
+  <button mat-icon-button routerLink="/dashboard" style="margin-right: 15px">
+    <mat-icon>arrow_back</mat-icon>
+  </button>
+  <h2>Detailed Telemetry: Pot {{ potId }}</h2>
+</div>
+
+<div class="charts-grid">
+  <mat-card class="big-chart-card">
+    <mat-card-header><mat-card-title>pH Stabilization Curve</mat-card-title></mat-card-header>
+    <div class="chart-wrapper">
+      <canvas
+        baseChart
+        #phCanvas="base-chart"
+        [data]="phChartData"
+        [options]="chartOptions"
+        type="line"
+      ></canvas>
+    </div>
+  </mat-card>
+
+  <mat-card class="big-chart-card">
+    <mat-card-header
+      ><mat-card-title>EC Nutrient Concentration (µS/cm)</mat-card-title></mat-card-header
+    >
+    <div class="chart-wrapper">
+      <canvas
+        baseChart
+        #ecCanvas="base-chart"
+        [data]="ecChartData"
+        [options]="chartOptions"
+        type="line"
+      ></canvas>
+    </div>
+  </mat-card>
+</div>
+
+<mat-card class="log-card">
+  <mat-card-header><mat-card-title>System Action Log</mat-card-title></mat-card-header>
+  <div class="table-container">
+    <table mat-table [dataSource]="recentDoses">
+      <ng-container matColumnDef="timestamp">
+        <th mat-header-cell *matHeaderCellDef>Time</th>
+        <td mat-cell *matCellDef="let dose">{{ dose.timestamp | date: 'mediumTime' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="pumpName">
+        <th mat-header-cell *matHeaderCellDef>Agent</th>
+        <td mat-cell *matCellDef="let dose">{{ dose.pumpName }}</td>
+      </ng-container>
+      <ng-container matColumnDef="ml">
+        <th mat-header-cell *matHeaderCellDef>Volume</th>
+        <td mat-cell *matCellDef="let dose">{{ dose.ml }} ml</td>
+      </ng-container>
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <td
+          mat-cell
+          *matCellDef="let dose"
+          [ngStyle]="{ color: dose.status === 'Completed' ? 'var(--accent)' : 'var(--warning)' }"
+        >
+          {{ dose.status }}
+        </td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+    </table>
+  </div>
+</mat-card>
