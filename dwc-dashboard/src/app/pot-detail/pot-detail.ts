@@ -32,6 +32,7 @@ export class PotDetailComponent implements OnInit, OnDestroy {
   potId!: string;
   telemetry: Telemetry | null = null;
   recentDoses: any[] = [];
+  historyLoaded: boolean = false;
   private subs = new Subscription();
 
   @ViewChild('phCanvas') phChart?: BaseChartDirective;
@@ -86,7 +87,9 @@ export class PotDetailComponent implements OnInit, OnDestroy {
       this.socket.onTelemetry().subscribe((data) => {
         if (data.potId === this.potId) {
           this.telemetry = data;
-          this.pushLivePoint(data);
+          if (this.historyLoaded) {
+            this.pushLivePoint(data);
+          }
         }
       }),
     );
@@ -104,6 +107,7 @@ export class PotDetailComponent implements OnInit, OnDestroy {
       this.ecChartData.datasets[0].data = history.map((d) => d.realEC);
       this.phChart?.update();
       this.ecChart?.update();
+      this.historyLoaded = true;
     });
   }
 

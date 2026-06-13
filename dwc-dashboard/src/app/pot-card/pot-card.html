@@ -7,12 +7,27 @@
   <mat-card-content class="summary-content">
     <div class="gauge-column">
       <div class="summary-readout">
-        <span class="label">pH</span>
-        <span class="value">{{ telemetry?.realPH | number: '1.2-2' }}</span>
+        <div class="readout-text">
+          <span class="label">pH</span>
+          <span class="target">Target: {{ targetPH | number: '1.1-1' }}</span>
+        </div>
+        <span class="value" [ngClass]="phStatusClass">{{
+          telemetry?.realPH | number: '1.2-2'
+        }}</span>
       </div>
-      <div class="summary-readout">
-        <span class="label">EC</span>
-        <span class="value">{{ telemetry?.realEC | number: '1.0-0' }}</span>
+
+      <div class="summary-readout interactive-gauge" (click)="toggleEcPpm($event)">
+        <div class="readout-text">
+          <span class="label">{{ showingPPM ? 'PPM' : 'EC' }}</span>
+          <span class="target">
+            Target: {{ showingPPM ? (targetPPM | number: '1.0-0') : (targetEC | number: '1.0-0') }}
+          </span>
+        </div>
+        <span class="value" [ngClass]="ecStatusClass">
+          {{ showingPPM ? (ppm | number: '1.0-0') : (telemetry?.realEC | number: '1.0-0') }}
+        </span>
+
+        <div class="gauge-hint">CHANGE TO {{ showingPPM ? 'EC' : 'PPM' }}</div>
       </div>
     </div>
 
@@ -26,7 +41,5 @@
         <span class="led-label">OVERFLOW</span>
       </div>
     </div>
-
-    <div class="click-hint">CLICK FOR DETAILS ➔</div>
   </mat-card-content>
 </mat-card>

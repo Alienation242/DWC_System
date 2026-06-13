@@ -157,19 +157,72 @@
 /* ----------------------------------
    INTERACTION HINTS
    ---------------------------------- */
-.click-hint {
-  position: absolute;
-  bottom: 12px;
-  right: 15px;
-  font-size: 0.75rem;
-  font-weight: bold;
-  letter-spacing: 1px;
-  color: var(--muted, #666);
-  opacity: 0;
+.interactive-gauge {
+  cursor: pointer;
   transition: all 0.2s ease;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.05); /* Base border so it doesn't jump */
 }
 
-.summary-square:hover .click-hint {
-  color: var(--accent, #4cbfa6);
+/* Make the gauge hover exactly like the card */
+.interactive-gauge:hover {
+  transform: translateY(-5px);
+  background-color: var(--panel, rgba(20, 20, 20, 0.8));
+  border-color: var(--accent, #4cbfa6);
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.4),
+    inset 0 0 10px rgba(0, 0, 0, 0.2);
+}
+
+/* The new hint that appears as a sleek badge */
+.gauge-hint {
+  position: absolute;
+  bottom: -10px; /* Hangs slightly off the bottom edge */
+  right: 15px;
+  background: var(--accent, #4cbfa6);
+  color: var(--bg, #000);
+  font-size: 0.65rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  opacity: 0;
+  transform: translateY(5px);
+  transition: all 0.2s ease;
+  pointer-events: none; /* Prevents it from stealing your clicks */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+}
+
+.interactive-gauge:hover .gauge-hint {
   opacity: 1;
+  transform: translateY(0);
+}
+
+/* Readout text stacking */
+.readout-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.readout-text .target {
+  font-size: 0.75rem;
+  color: var(--muted, #888);
+  margin-top: 4px;
+}
+
+/* --- DYNAMIC COLOR CLASSES --- */
+/* We define these explicitly so they override the default accent color if needed */
+.summary-readout .value.val-optimal {
+  color: var(--accent, #4cbfa6);
+  text-shadow: 0 0 12px var(--accent, rgba(76, 191, 166, 0.4));
+}
+
+.summary-readout .value.val-warning {
+  color: var(--warning, #f59e0b);
+  text-shadow: 0 0 12px var(--warning, rgba(245, 158, 11, 0.4));
+}
+
+.summary-readout .value.val-danger {
+  color: var(--danger, #dc2626);
+  text-shadow: 0 0 12px var(--danger, rgba(220, 38, 38, 0.4));
 }
