@@ -96,63 +96,55 @@ export class PotDetailComponent implements OnInit, OnDestroy {
   }
 
   loadData() {
+    this.historyLoaded = false; // Block socket updates while loading
     this.api.getLatestTelemetry(this.potId).subscribe((data) => (this.telemetry = data));
-
-    const limit = 20;
-    this.api.getRecentDoses(this.potId, limit).subscribe({
-      next: (data) => {
-        console.log('💊 Doses received:', data);
-        this.recentDoses = data;
-      },
-      error: (err) => console.error('Log API Error:', err),
-    });
+    this.api.getRecentDoses(this.potId, 20).subscribe((data) => (this.recentDoses = data));
 
     this.api.getTelemetryHistory(this.potId, 50).subscribe((history) => {
-      console.log('📜 History received:', history);
+      // 1. Wipe old data
+      this.phChartData.labels = [];
+      this.phChartData.datasets[0].data = [];
+      this.ecChartData.labels = [];
+      this.ecChartData.datasets[0].data = [];
+
+      // 2. Sort and Parse
       history.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-      const parsedLabels: string[] = [];
-      const parsedPh: number[] = [];
-      const parsedEc: number[] = [];
-
       history.forEach((d) => {
-        // FIX 4: The Timezone UTC bug!
-        // If the database timestamp is missing the 'Z', JS thinks it's local time (which causes the 2-hour gap in CEST).
-        // Appending 'Z' forces it to parse as UTC, realigning it perfectly with your live local time.
         const safeStr = d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp + 'Z';
-        parsedLabels.push(new Date(safeStr).toLocaleTimeString());
-        parsedPh.push(d.realPH);
-        parsedEc.push(d.realEC);
+        const timeLabel = new Date(safeStr).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+        this.phChartData.labels?.push(timeLabel);
+        this.phChartData.datasets[0].data.push(d.realPH);
+        this.ecChartData.labels?.push(timeLabel);
+        this.ecChartData.datasets[0].data.push(d.realEC);
       });
 
-      this.phChartData.labels = parsedLabels;
-      this.phChartData.datasets[0].data = parsedPh;
-
-      this.ecChartData.labels = parsedLabels;
-      this.ecChartData.datasets[0].data = parsedEc;
-
+      this.historyLoaded = true; // Unlock socket updates
       this.phChart?.update();
       this.ecChart?.update();
-      this.historyLoaded = true;
     });
   }
 
   pushLivePoint(data: Telemetry) {
-    // Safely convert timestamp (use current time if missing)
-    const timeStr = data.timestamp
-      ? new Date(data.timestamp).toLocaleTimeString()
-      : new Date().toLocaleTimeString();
+    if (!data.timestamp) return;
 
-    // Prevent duplicate timestamps
-    if (this.phChartData.labels?.includes(timeStr)) return;
+    const newDate = new Date(data.timestamp);
+    const timeStr = newDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // 1. Ignore if point is older than the last one in the chart (fixes jumping)
+    const lastLabel = this.phChartData.labels?.[this.phChartData.labels.length - 1];
+    if (lastLabel === timeStr) return;
 
     this.phChartData.labels?.push(timeStr);
     this.phChartData.datasets[0].data.push(data.realPH);
-
     this.ecChartData.labels?.push(timeStr);
     this.ecChartData.datasets[0].data.push(data.realEC);
 
-    // Keep only last 50 points
+    // 2. Keep limit
     while (this.phChartData.labels!.length > 50) {
       this.phChartData.labels?.shift();
       this.phChartData.datasets[0].data.shift();
@@ -160,8 +152,7 @@ export class PotDetailComponent implements OnInit, OnDestroy {
       this.ecChartData.datasets[0].data.shift();
     }
 
-    this.phChart?.update();
-    this.ecChart?.update();
+    this.phChart?.update('none'); // 'none' prevents animation glitches
   }
 
   ngOnDestroy() {
