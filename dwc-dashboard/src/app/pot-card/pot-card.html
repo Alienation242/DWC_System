@@ -1,0 +1,65 @@
+<mat-card class="pot-card">
+  <mat-card-header>
+    <mat-card-title>Pot {{ potId }}</mat-card-title>
+    <mat-card-subtitle>Phase: {{ phase }}</mat-card-subtitle>
+  </mat-card-header>
+
+  <mat-card-content>
+    <!-- Live gauges -->
+    <div class="gauge-row">
+      <div class="gauge">
+        <div>pH</div>
+        <div class="value">{{ telemetry?.realPH | number: '1.2-2' }}</div>
+        <div class="target">Target: 5.8</div>
+      </div>
+      <div class="gauge">
+        <div>EC (µS/cm)</div>
+        <div class="value">{{ telemetry?.realEC | number: '1.0-0' }}</div>
+      </div>
+      <div class="gauge">
+        <div>PPM</div>
+        <div class="value">{{ ppm | number: '1.0-0' }}</div>
+        <div class="target">Target: {{ targetPPM | number: '1.0-0' }}</div>
+      </div>
+    </div>
+
+    <!-- Tank status icons -->
+    <div class="tank-status">
+      <mat-icon [color]="telemetry?.isTankEmpty ? 'warn' : 'primary'">water_drop</mat-icon>
+      Tank Empty: {{ telemetry?.isTankEmpty ? '⚠️ YES' : 'No' }}
+      <mat-icon [color]="telemetry?.isTankOverflowing ? 'warn' : 'primary'">overflow</mat-icon>
+      Overflow: {{ telemetry?.isTankOverflowing ? '⚠️ YES' : 'No' }}
+    </div>
+
+    <!-- Chart -->
+    <div class="chart-container">
+      <canvas baseChart [data]="lineChartData" [options]="lineChartOptions" [type]="lineChartType">
+      </canvas>
+    </div>
+
+    <!-- Recent doses table -->
+    <h4>Recent Doses</h4>
+    <div class="table-container">
+      <table mat-table [dataSource]="recentDoses" class="mat-elevation-z2">
+        <ng-container matColumnDef="timestamp">
+          <th mat-header-cell *matHeaderCellDef>Time</th>
+          <td mat-cell *matCellDef="let dose">{{ dose.timestamp | date: 'short' }}</td>
+        </ng-container>
+        <ng-container matColumnDef="pumpName">
+          <th mat-header-cell *matHeaderCellDef>Pump</th>
+          <td mat-cell *matCellDef="let dose">{{ dose.pumpName }}</td>
+        </ng-container>
+        <ng-container matColumnDef="ml">
+          <th mat-header-cell *matHeaderCellDef>Volume (ml)</th>
+          <td mat-cell *matCellDef="let dose">{{ dose.ml }}</td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Status</th>
+          <td mat-cell *matCellDef="let dose">{{ dose.status }}</td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+      </table>
+    </div>
+  </mat-card-content>
+</mat-card>

@@ -1,0 +1,30 @@
+.pot-card {
+  margin: 10px;
+}
+.gauge-row {
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+  margin: 15px 0;
+}
+.gauge .value {
+  font-size: 1.8rem;
+  font-weight: bold;
+}
+.tank-status {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: center;
+  margin: 15px 0;
+}
+.chart-container {
+  height: 250px;
+  margin: 20px 0;
+}
+.table-container {
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+}

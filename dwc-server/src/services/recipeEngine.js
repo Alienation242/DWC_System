@@ -439,6 +439,17 @@ class RecipeEngine {
     }
   }
 
+  async _getActivePots() {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const pots = await prisma.telemetryLog.findMany({
+      where: { timestamp: { gte: oneHourAgo } },
+      select: { potId: true },
+      distinct: ["potId"],
+    });
+    if (pots.length === 0) return ["A"];
+    return pots.map((p) => p.potId);
+  }
+
   async executePumpAndWait(pumpName, actionStr, amountMl, options = {}) {
     const {
       maxRetries = 3,
@@ -597,19 +608,8 @@ class RecipeEngine {
 
     try {
       console.log(`\n--- 🧠 [RECIPE ENGINE] TICK ---`);
-
-      // For now, use pot "A" only – multi‑pot engine will be implemented later
-      const potId = "A";
-
-      const telemetry = await prisma.telemetryLog.findFirst({
-        where: { potId },
-        orderBy: { timestamp: "desc" },
-      });
-      if (!telemetry) {
-        console.log("⏳ No telemetry yet.");
-        this.isTicking = false;
-        return;
-      }
+      const activePots = await this._getActivePots();
+      console.log(`Active pots: ${activePots.join(", ")}`);
 
       const systemState = await prisma.systemState.findFirst();
       if (!systemState) throw new Error("SystemState missing");
@@ -619,7 +619,6 @@ class RecipeEngine {
 
       const currentDay = systemState.currentDay || 1;
       const sysVol = systemState.sysVol || 18.0;
-
       const dynamicData = this.getDynamicTarget(
         strainProfile,
         currentDay,
@@ -628,58 +627,77 @@ class RecipeEngine {
       const targetPPM = dynamicData.targetPPM;
       const stage = dynamicData.phase;
 
-      const livePPM = telemetry.realEC * 0.5;
-      const livePH = telemetry.realPH;
+      for (const potId of activePots) {
+        console.log(`\n🔹 Processing pot ${potId}`);
+        const telemetry = await prisma.telemetryLog.findFirst({
+          where: { potId },
+          orderBy: { timestamp: "desc" },
+        });
+        if (!telemetry) {
+          console.log(`⏳ No telemetry for pot ${potId}, skipping.`);
+          continue;
+        }
 
-      console.log(
-        `📊 Live (Pot ${potId}) | pH: ${livePH.toFixed(2)} | PPM: ${livePPM.toFixed(0)}`,
-      );
-      console.log(
-        `🎯 Target | Day: ${currentDay} | Phase: ${stage} | PPM: ${targetPPM.toFixed(0)}`,
-      );
+        const livePPM = telemetry.realEC * 0.5;
+        const livePH = telemetry.realPH;
 
-      if (telemetry.isTankOverflowing) {
-        console.error(
-          "💥 CRITICAL: Tank overflow detected! Stopping all pumps.",
+        console.log(
+          `📊 Live (Pot ${potId}) | pH: ${livePH.toFixed(2)} | PPM: ${livePPM.toFixed(0)}`,
         );
-        await this.mqtt.sendCommand("stop", 0, "None", this.mqtt.nextSeq());
-        return;
-      }
-      if (telemetry.isTankEmpty) {
-        console.warn("⚠️ Tank empty – skipping tick.");
-        return;
-      }
+        console.log(
+          `🎯 Target | Day: ${currentDay} | Phase: ${stage} | PPM: ${targetPPM.toFixed(0)}`,
+        );
 
-      const deadbandPPM = 20;
-      if (livePPM > targetPPM + deadbandPPM) {
-        if (
-          await this._handleEcExcess(
-            livePPM,
-            targetPPM,
-            sysVol,
-            maxBatchMl,
-            potId,
-          )
-        )
+        if (telemetry.isTankOverflowing) {
+          console.error(
+            `💥 CRITICAL: Tank overflow detected for pot ${potId}! Stopping all pumps.`,
+          );
+          await this.mqtt.sendCommand("stop", 0, "None", this.mqtt.nextSeq());
           return;
-      } else if (livePPM < targetPPM - deadbandPPM) {
-        if (
-          await this._handleEcDeficit(
-            livePPM,
-            targetPPM,
-            stage,
-            currentDay,
-            sysVol,
-            nutrientConfig,
-            maxBatchMl,
-            potId,
-          )
-        )
-          return;
-      }
+        }
+        if (telemetry.isTankEmpty) {
+          console.warn(
+            `⚠️ Tank empty for pot ${potId} – skipping corrections.`,
+          );
+          continue;
+        }
 
-      await this._handlePhCorrection(livePH, potId);
-      console.log(`✅ System stable`);
+        const deadbandPPM = 20;
+        if (livePPM > targetPPM + deadbandPPM) {
+          if (
+            await this._handleEcExcess(
+              livePPM,
+              targetPPM,
+              sysVol,
+              maxBatchMl,
+              potId,
+            )
+          ) {
+            await new Promise((r) => setTimeout(r, 2000));
+            continue;
+          }
+        } else if (livePPM < targetPPM - deadbandPPM) {
+          if (
+            await this._handleEcDeficit(
+              livePPM,
+              targetPPM,
+              stage,
+              currentDay,
+              sysVol,
+              nutrientConfig,
+              maxBatchMl,
+              potId,
+            )
+          ) {
+            await new Promise((r) => setTimeout(r, 2000));
+            continue;
+          }
+        }
+
+        await this._handlePhCorrection(livePH, potId);
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      console.log(`✅ All pots stable`);
     } catch (err) {
       console.error("❌ Recipe Engine Error:", err);
       this.mqtt.sendCommand("stop", 0, "None", this.mqtt.nextSeq());

@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
 
 export interface Calibration {
   pH: {
@@ -41,6 +42,27 @@ export interface SystemState {
   sysVol: number;
 }
 
+export interface TelemetryRecord {
+  id: number;
+  potId: string;
+  rawPH: number;
+  rawEC: number;
+  realPH: number;
+  realEC: number;
+  isTankEmpty: boolean;
+  isTankOverflowing: boolean;
+  timestamp: string;
+}
+
+export interface DoseRecord {
+  id: number;
+  potId: string;
+  pumpName: string;
+  ml: number;
+  status: string;
+  timestamp: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private base = '/api';
@@ -80,7 +102,6 @@ export class ApiService {
   getTarget() {
     return this.http.get<{ targetPPM: number; phase: string }>(`${this.base}/system/target`);
   }
-
   stopAll() {
     return this.http.post<{ success: boolean }>(`${this.base}/manual/stop`, {});
   }
@@ -94,7 +115,23 @@ export class ApiService {
   deliver(target: string, volumeMl: number) {
     return this.http.post<{ success: boolean }>(`${this.base}/manual/deliver`, {
       target,
-      volumeMl: volumeMl,
+      volumeMl,
     });
+  }
+
+  // ----- Telemetry endpoints -----
+  getPots(): Observable<string[]> {
+    return this.http.get<string[]>(`${this.base}/telemetry/pots`);
+  }
+  getLatestTelemetry(potId: string): Observable<TelemetryRecord> {
+    return this.http.get<TelemetryRecord>(`${this.base}/telemetry/latest/${potId}`);
+  }
+  getTelemetryHistory(potId: string, limit = 100): Observable<TelemetryRecord[]> {
+    return this.http.get<TelemetryRecord[]>(
+      `${this.base}/telemetry/history/${potId}?limit=${limit}`,
+    );
+  }
+  getRecentDoses(potId: string, limit = 20): Observable<DoseRecord[]> {
+    return this.http.get<DoseRecord[]>(`${this.base}/telemetry/doses/${potId}?limit=${limit}`);
   }
 }

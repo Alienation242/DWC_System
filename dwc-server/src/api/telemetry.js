@@ -47,4 +47,16 @@ router.get("/doses/:potId", async (req, res) => {
   }
 });
 
+router.get("/pots", async (req, res) => {
+  try {
+    const pots = await prisma.telemetryLog.findMany({
+      select: { potId: true },
+      distinct: ["potId"],
+    });
+    res.json(pots.map((p) => p.potId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

@@ -1,52 +1,32 @@
+const express = require("express");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-class Watchdog {
-  static async isSafeToDose(pumpName, ml, potId = "A") {
-    const isWater = pumpName.toLowerCase().includes("water");
-    if (isWater) return true;
+const router = express.Router();
 
-    let config = await prisma.watchdogConfig.findUnique({
+router.get("/config", async (req, res) => {
+  try {
+    const configs = await prisma.watchdogConfig.findMany();
+    res.json(configs);
+  } catch (err) {
+    console.error("Error fetching watchdog configs:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/config", async (req, res) => {
+  try {
+    const { pumpName, dailyLimitMl, cooldownSecs, enabled } = req.body;
+    const updated = await prisma.watchdogConfig.upsert({
       where: { pumpName },
+      update: { dailyLimitMl, cooldownSecs, enabled },
+      create: { pumpName, dailyLimitMl, cooldownSecs, enabled },
     });
-    if (!config) {
-      config = await prisma.watchdogConfig.create({
-        data: { pumpName, dailyLimitMl: 15.0, cooldownSecs: 30 },
-      });
-    }
-    if (!config.enabled) return false;
-
-    const lastDose = await prisma.doseLog.findFirst({
-      where: { pumpName, potId, status: "SUCCESS" },
-      orderBy: { timestamp: "desc" },
-    });
-    if (
-      lastDose &&
-      Date.now() - lastDose.timestamp.getTime() < config.cooldownSecs * 1000
-    ) {
-      console.warn(`⏳ Cooldown active for ${pumpName} on pot ${potId}`);
-      return false;
-    }
-
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const aggregate = await prisma.doseLog.aggregate({
-      where: { pumpName, potId, timestamp: { gte: startOfDay } },
-      _sum: { ml: true },
-    });
-    const totalToday = aggregate._sum.ml || 0;
-    if (totalToday + ml > config.dailyLimitMl) {
-      console.warn(`🚫 Daily limit exceeded for ${pumpName} on pot ${potId}`);
-      return false;
-    }
-    return true;
+    res.json(updated);
+  } catch (err) {
+    console.error("Error upserting watchdog config:", err);
+    res.status(500).json({ error: err.message });
   }
+});
 
-  static async logSuccessfulDose(pumpName, ml, potId = "A") {
-    await prisma.doseLog.create({
-      data: { pumpName, ml, potId, status: "SUCCESS" },
-    });
-  }
-}
-
-module.exports = Watchdog;
+module.exports = router;

@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { Observable } from 'rxjs';
 
 export interface Telemetry {
+  potId?: string;
   rawPH: number;
   rawEC: number;
   realPH: number;
