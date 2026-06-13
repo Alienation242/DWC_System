@@ -131,7 +131,8 @@ export class ApiService {
       `${this.base}/telemetry/history/${potId}?limit=${limit}`,
     );
   }
-  getRecentDoses(potId: string, limit = 20): Observable<DoseRecord[]> {
-    return this.http.get<DoseRecord[]>(`${this.base}/telemetry/doses/${potId}?limit=${limit}`);
+  getRecentDoses(potId: string, limit: number): Observable<DoseRecord[]> {
+    const url = this.base + '/telemetry/doses/' + potId + '?limit=' + limit;
+    return this.http.get<DoseRecord[]>(url);
   }
 }

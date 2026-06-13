@@ -207,7 +207,13 @@ class MqttService extends EventEmitter {
         realEC,
       });
       if (this.io) {
-        this.io.emit("telemetry_update", { potId, ...payload, realPH, realEC });
+        this.io.emit("telemetry_update", {
+          potId,
+          ...payload,
+          realPH,
+          realEC,
+          timestamp: new Date().toISOString(),
+        });
       }
     } catch (error) {
       console.error("❌ Failed to process telemetry:", error.message);

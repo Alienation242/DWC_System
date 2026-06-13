@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 export interface Telemetry {
   potId?: string;
+  timestamp?: string;
   rawPH: number;
   rawEC: number;
   realPH: number;

@@ -97,9 +97,18 @@ export class PotDetailComponent implements OnInit, OnDestroy {
 
   loadData() {
     this.api.getLatestTelemetry(this.potId).subscribe((data) => (this.telemetry = data));
-    this.api.getRecentDoses(this.potId, 20).subscribe((data) => (this.recentDoses = data));
+
+    const limit = 20;
+    this.api.getRecentDoses(this.potId, limit).subscribe({
+      next: (data) => {
+        console.log('💊 Doses received:', data);
+        this.recentDoses = data;
+      },
+      error: (err) => console.error('Log API Error:', err),
+    });
 
     this.api.getTelemetryHistory(this.potId, 50).subscribe((history) => {
+      console.log('📜 History received:', history);
       history.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
       const parsedLabels: string[] = [];
@@ -129,19 +138,22 @@ export class PotDetailComponent implements OnInit, OnDestroy {
   }
 
   pushLivePoint(data: Telemetry) {
-    const timeNow = new Date().toLocaleTimeString();
+    // Safely convert timestamp (use current time if missing)
+    const timeStr = data.timestamp
+      ? new Date(data.timestamp).toLocaleTimeString()
+      : new Date().toLocaleTimeString();
 
-    // Prevent duplicate timestamps if the socket fires super rapidly
-    const lastLabel = this.phChartData.labels?.[this.phChartData.labels.length - 1];
-    if (lastLabel === timeNow) return;
+    // Prevent duplicate timestamps
+    if (this.phChartData.labels?.includes(timeStr)) return;
 
-    this.phChartData.labels?.push(timeNow);
+    this.phChartData.labels?.push(timeStr);
     this.phChartData.datasets[0].data.push(data.realPH);
 
-    this.ecChartData.labels?.push(timeNow);
+    this.ecChartData.labels?.push(timeStr);
     this.ecChartData.datasets[0].data.push(data.realEC);
 
-    if (this.phChartData.labels!.length > 50) {
+    // Keep only last 50 points
+    while (this.phChartData.labels!.length > 50) {
       this.phChartData.labels?.shift();
       this.phChartData.datasets[0].data.shift();
       this.ecChartData.labels?.shift();
