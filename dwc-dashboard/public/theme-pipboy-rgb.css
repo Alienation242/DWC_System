@@ -1,0 +1,374 @@
+/* ==========================================
+   THEME: PIP-BOY 3000 (COLOR CRT)
+   ========================================== */
+
+:root {
+  --bg: #051005;
+  --panel: #0a1f0a;
+  --text: #1df23b;
+  --accent: #1df23b;
+  --green: #1df23b;
+  --danger: #e74c3c;
+  --warning: #f2a900;
+  --muted: #0d801d;
+  --flower: #9d4edd;
+
+  --sub-optimal: #3b434f;
+  --optimal-veg: #45a29e;
+  --optimal-flw: #17b978;
+  --text-optimal: #66fcf1;
+
+  --bg-panel: transparent;
+  --bg-danger: transparent;
+  --bg-warning: transparent;
+  --bg-optimal-veg: transparent;
+  --bg-optimal-flw: transparent;
+}
+
+body {
+  font-family: "Courier New", Courier, monospace !important;
+  background-color: var(--bg);
+  color: var(--text);
+  text-transform: uppercase;
+  text-shadow: 0 0 4px rgba(29, 242, 59, 0.6);
+  letter-spacing: 1px;
+}
+
+h1,
+input,
+select,
+button,
+.readout,
+span,
+strong {
+  font-family: "Courier New", Courier, monospace !important;
+  text-transform: uppercase;
+  color: var(--text) !important;
+  text-shadow: 0 0 4px rgba(29, 242, 59, 0.6);
+}
+
+/* ==========================================
+   80s POINT & CLICK CROSSHAIR CURSORS
+   ========================================== */
+input,
+select,
+button,
+.btn-action,
+.phase-btn,
+.bar-seg,
+.has-tooltip,
+.custom-select,
+.editable-metric {
+  cursor: crosshair !important;
+}
+input[type="range"]::-webkit-slider-thumb {
+  cursor: crosshair !important;
+}
+input[type="range"]::-moz-range-thumb {
+  cursor: crosshair !important;
+}
+
+/* CRT Scanlines */
+body::after {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background:
+    linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+    linear-gradient(
+      90deg,
+      rgba(255, 0, 0, 0.06),
+      rgba(0, 255, 0, 0.02),
+      rgba(0, 0, 255, 0.06)
+    );
+  z-index: 9999;
+  background-size:
+    100% 2px,
+    3px 100%;
+  pointer-events: none;
+}
+
+/* Flatten Background UI */
+.panel,
+.timeline-panel,
+.env-box,
+.phase-toggle,
+.element-legend,
+.recipe-bar {
+  background: transparent !important;
+  border: 1px solid var(--text) !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+/* Colorful Genetics / Recipe Metrics */
+.metric,
+.recipe-item {
+  border-radius: 0 !important;
+}
+.metric {
+  background: rgba(29, 242, 59, 0.05) !important;
+  border: 1px solid var(--muted) !important;
+}
+
+#stretchWks {
+  color: #3498db !important;
+  border-bottom: 1px dashed #3498db !important;
+  text-shadow: 0 0 4px rgba(52, 152, 219, 0.6) !important;
+}
+#bulkWks {
+  color: #2ecc71 !important;
+  border-bottom: 1px dashed #2ecc71 !important;
+  text-shadow: 0 0 4px rgba(46, 204, 113, 0.6) !important;
+}
+#ripenWks {
+  color: #9d4edd !important;
+  border-bottom: 1px dashed #9d4edd !important;
+  text-shadow: 0 0 4px rgba(157, 78, 221, 0.6) !important;
+}
+
+.r-cal {
+  background: rgba(236, 240, 241, 0.1) !important;
+  color: #ecf0f1 !important;
+  border: 1px solid rgba(236, 240, 241, 0.4) !important;
+  box-shadow: inset 0 0 8px rgba(236, 240, 241, 0.2) !important;
+}
+.r-gro {
+  background: rgba(46, 204, 113, 0.1) !important;
+  color: #2ecc71 !important;
+  border: 1px solid rgba(46, 204, 113, 0.4) !important;
+  box-shadow: inset 0 0 8px rgba(46, 204, 113, 0.2) !important;
+}
+.r-mic {
+  background: rgba(184, 120, 214, 0.1) !important;
+  color: #b878d6 !important;
+  border: 1px solid rgba(184, 120, 214, 0.4) !important;
+  box-shadow: inset 0 0 8px rgba(184, 120, 214, 0.2) !important;
+}
+.r-blo {
+  background: rgba(231, 76, 60, 0.1) !important;
+  color: #e74c3c !important;
+  border: 1px solid rgba(231, 76, 60, 0.4) !important;
+  box-shadow: inset 0 0 8px rgba(231, 76, 60, 0.2) !important;
+}
+.r-fin {
+  background: rgba(155, 89, 182, 0.1) !important;
+  color: #9b59b6 !important;
+  border: 1px solid rgba(155, 89, 182, 0.4) !important;
+  box-shadow: inset 0 0 8px rgba(155, 89, 182, 0.2) !important;
+}
+
+/* Controls */
+.btn-action {
+  background: transparent !important;
+  border: 1px solid var(--text) !important;
+  border-radius: 0 !important;
+}
+.btn-action:hover,
+.btn-action.play-active,
+.phase-btn.active {
+  background: var(--text) !important;
+  color: #000 !important;
+  text-shadow: none !important;
+}
+.speed-control input,
+#playSpeed {
+  background: transparent !important;
+  color: var(--text) !important;
+  border: 1px solid var(--text) !important;
+  border-radius: 0 !important;
+}
+
+/* FIXED HEATMAP SLIDERS: No background override allows RGB to shine through */
+input[type="range"].std-range {
+  border: 1px solid var(--text) !important;
+  border-radius: 0 !important;
+}
+
+/* The FlippedAt Slider - CalMag Styling */
+input[type="range"]#flipWeek {
+  background: rgba(236, 240, 241, 0.1) !important;
+  border: 1px solid rgba(236, 240, 241, 0.4) !important;
+  box-shadow: inset 0 0 8px rgba(236, 240, 241, 0.2) !important;
+}
+input[type="range"]#flipWeek::-webkit-slider-thumb {
+  background: #ecf0f1 !important;
+  border: 2px solid #051005 !important;
+}
+
+input[type="range"]#currentDay {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+input[type="range"]::-webkit-slider-thumb {
+  background: var(--text) !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+input[type="number"].standard-num {
+  background: transparent !important;
+  border: 1px solid var(--text) !important;
+  border-radius: 0 !important;
+}
+select.custom-select {
+  background: transparent !important;
+  border: 1px solid var(--text) !important;
+  border-radius: 0 !important;
+}
+select.custom-select option {
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: "Courier New", Courier, monospace !important;
+}
+hr.divider {
+  border-top: 1px dashed var(--muted);
+}
+
+/* ==========================================
+   COLORFUL BLINKING STATUS & ENV FIELDS
+   ========================================== */
+@keyframes crt-pulse-error-rgb {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0px transparent;
+    text-shadow: 0 0 4px rgba(231, 76, 60, 0.4);
+  }
+  50% {
+    box-shadow: inset 0 0 20px #e74c3c;
+    text-shadow: 0 0 10px #e74c3c;
+    color: #e74c3c;
+    border-color: #e74c3c;
+  }
+}
+@keyframes crt-pulse-warning-rgb {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0px transparent;
+    text-shadow: 0 0 4px rgba(242, 169, 0, 0.4);
+  }
+  50% {
+    box-shadow: inset 0 0 20px #f2a900;
+    text-shadow: 0 0 10px #f2a900;
+    color: #f2a900;
+    border-color: #f2a900;
+  }
+}
+@keyframes crt-pulse-blue-rgb {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0px transparent;
+    text-shadow: 0 0 4px rgba(102, 252, 241, 0.4);
+  }
+  50% {
+    box-shadow: inset 0 0 20px #66fcf1;
+    text-shadow: 0 0 10px #66fcf1;
+    color: #66fcf1;
+    border-color: #66fcf1;
+  }
+}
+@keyframes crt-pulse-optimal-rgb {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0px transparent;
+    text-shadow: 0 0 4px rgba(69, 162, 158, 0.4);
+  }
+  50% {
+    box-shadow: inset 0 0 20px #45a29e;
+    text-shadow: 0 0 10px #45a29e;
+    color: #45a29e;
+    border-color: #45a29e;
+  }
+}
+@keyframes crt-pulse-generic-rgb {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0px transparent;
+  }
+  50% {
+    box-shadow: inset 0 0 20px currentColor;
+  }
+}
+
+.status-box,
+.env-box {
+  border-radius: 0 !important;
+  font-family: "Courier New", Courier, monospace !important;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  animation: crt-pulse-generic-rgb 2s infinite;
+  transition: color 0.3s ease;
+}
+
+/* INTERCEPT VARS INSTEAD OF HEX CODES */
+.status-box[style*="var(--danger)"],
+.env-box[style*="var(--danger)"] {
+  animation: crt-pulse-error-rgb 0.8s infinite;
+  color: var(--danger) !important;
+}
+.status-box[style*="var(--warning)"],
+.env-box[style*="var(--warning)"] {
+  animation: crt-pulse-warning-rgb 1.2s infinite;
+  color: var(--warning) !important;
+}
+.status-box[style*="var(--optimal-veg)"] {
+  animation: crt-pulse-optimal-rgb 2s infinite;
+  color: var(--optimal-veg) !important;
+}
+.env-box[style*="var(--text-optimal)"] {
+  animation: crt-pulse-blue-rgb 2.5s infinite;
+  color: var(--text-optimal) !important;
+}
+.status-box[style*="var(--optimal-flw)"] {
+  animation: crt-pulse-generic-rgb 2s infinite;
+  color: var(--optimal-flw) !important;
+}
+
+/* CHEM PROFILE BORDER FIX */
+.element-bar,
+.bar-visuals,
+.bar-hitboxes,
+.bar-seg {
+  border-radius: 0 !important;
+}
+.element-bar {
+  background: transparent !important;
+  border: 1px solid var(--muted) !important;
+}
+
+/* Tooltips */
+.tooltip-text,
+.val-tooltip {
+  background: #051005 !important;
+  border: 1px solid var(--text) !important;
+  border-radius: 0 !important;
+}
+.lbl {
+  color: #000 !important;
+  text-shadow: none !important;
+}
+.tick-mark {
+  background: var(--text) !important;
+}
+
+/* Canvas Rendering */
+.canvas-container {
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+canvas {
+  filter: contrast(1.2) saturate(1.4) brightness(0.9) !important;
+}
+.timeline-track-bg {
+  border: 1px solid var(--text);
+  border-radius: 0 !important;
+  filter: none !important;
+}
+.bar-vis {
+  filter: contrast(1.2) saturate(1.5) !important;
+}

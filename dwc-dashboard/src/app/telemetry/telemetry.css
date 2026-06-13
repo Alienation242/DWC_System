@@ -1,8 +1,10 @@
 .pots-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(600px, 1fr));
+  /* Reduced from 600px to 450px so you can fit 2-3 cards side-by-side on a normal monitor */
+  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
   gap: 20px;
-  padding: 20px;
+  padding: 10px;
+  align-items: start; /* Prevents cards from stretching vertically to match each other */
 }
 @media (max-width: 700px) {
   .pots-grid {

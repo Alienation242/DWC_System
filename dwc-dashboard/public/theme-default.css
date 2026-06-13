@@ -1,0 +1,250 @@
+/* ==========================================
+   THEME: DEFAULT (RGB ALCHEMIST)
+   ========================================== */
+
+:root {
+  --bg: #0b0c10;
+  --panel: #14161c;
+  --text: #c5c6c7;
+  --accent: #45a29e;
+  --green: #17b978;
+  --danger: #f1404b;
+  --warning: #f2a900;
+  --muted: #5a6268;
+  --flower: #9d4edd;
+
+  /* Mathematical State Variables (replaces JS hex injections) */
+  --sub-optimal: #3b434f;
+  --optimal-veg: #45a29e;
+  --optimal-flw: #17b978;
+  --text-optimal: #66fcf1;
+
+  /* Background Box States */
+  --bg-panel: #14161c;
+  --bg-danger: #3e0c13;
+  --bg-warning: #331a00;
+  --bg-optimal-veg: #0a192f;
+  --bg-optimal-flw: #06261b;
+}
+
+body {
+  font-family: "Inter", system-ui, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+h1 {
+  color: #66fcf1;
+}
+
+.panel,
+.timeline-panel {
+  background-color: var(--panel);
+}
+.canvas-container {
+  background: radial-gradient(circle at 50% 30%, #1a1e24 0%, #050608 100%);
+}
+
+.tick-mark {
+  background: #fff;
+}
+.tick-label {
+  color: #fff;
+  font-family: "Courier New", monospace;
+}
+
+input[type="range"]#currentDay::-webkit-slider-thumb {
+  background: #ffffff;
+  border: 4px solid #0b0c10;
+}
+
+.btn-action {
+  background: #1f2833;
+  color: #fff;
+  border: 1px solid #333;
+}
+.btn-action:hover {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
+.btn-action.play-active {
+  background: var(--green);
+  color: #000;
+  border-color: var(--green);
+}
+
+.speed-control input {
+  background: #0b0c10;
+  border: 1px solid var(--accent);
+  color: #66fcf1;
+}
+
+.phase-toggle {
+  background: #0b0c10;
+}
+.phase-btn {
+  color: var(--muted);
+}
+.phase-btn.active#btnVeg {
+  background: var(--accent);
+  color: #000;
+}
+.phase-btn.active#btnFlower {
+  background: var(--flower);
+  color: #fff;
+}
+
+.bio-phase {
+  background-color: #1a1e24;
+  color: #fff;
+}
+.status-box {
+  border-left: 5px solid #5a6268;
+}
+.metric {
+  background-color: #1a1a1a;
+}
+.metric span {
+  color: var(--muted);
+}
+.metric strong {
+  color: #fff;
+}
+label {
+  color: #c5c6c7;
+}
+
+.recipe-bar {
+  background: #0b0c10;
+}
+.r-gro {
+  background: rgba(39, 174, 96, 0.15);
+  color: #2ecc71;
+  border: 1px solid rgba(39, 174, 96, 0.4);
+}
+.r-mic {
+  background: rgba(142, 68, 173, 0.15);
+  color: #b878d6;
+  border: 1px solid rgba(142, 68, 173, 0.4);
+}
+.r-blo {
+  background: rgba(231, 76, 60, 0.15);
+  color: #e74c3c;
+  border: 1px solid rgba(231, 76, 60, 0.4);
+}
+.r-cal {
+  background: rgba(236, 240, 241, 0.1);
+  color: #ecf0f1;
+  border: 1px solid rgba(236, 240, 241, 0.3);
+}
+.r-fin {
+  background: rgba(155, 89, 182, 0.15);
+  color: #9b59b6;
+  border: 1px solid rgba(155, 89, 182, 0.4);
+}
+.tot-ml {
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+select.custom-select {
+  background: #1a1e24;
+  color: #66fcf1;
+}
+
+.tooltip-text {
+  background-color: #0b0c10;
+  color: #c5c6c7;
+  border: 1px solid var(--accent);
+}
+.tooltip-text::after {
+  border-color: var(--accent) transparent transparent transparent;
+}
+.tooltip-down::after {
+  border-color: transparent transparent var(--accent) transparent;
+}
+.tooltip-right::after {
+  border-color: transparent var(--accent) transparent transparent;
+}
+
+.element-legend {
+  background: rgba(11, 12, 16, 0.85);
+  border: 1px solid var(--accent);
+}
+.element-bar {
+  background: #1a1e24;
+}
+.val-tooltip {
+  background: #000;
+  color: #fff;
+  border: 1px solid #333;
+}
+.val-tooltip::after {
+  border-color: transparent #333 transparent transparent;
+}
+.lbl {
+  color: #000;
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.7);
+}
+
+input[type="range"].std-range {
+  background: #1f2833;
+}
+input[type="range"].std-range::-webkit-slider-thumb {
+  background: #ffffff;
+  border: 3px solid #0b0c10;
+}
+input[type="number"].standard-num {
+  background: #0b0c10;
+  border: 1px solid var(--accent);
+  color: #66fcf1;
+}
+input[type="number"].editable-metric {
+  border-bottom: 1px dashed var(--flower);
+  color: var(--flower);
+}
+input[type="number"].editable-metric:focus {
+  background: rgba(255, 255, 255, 0.05);
+}
+.readout {
+  color: #66fcf1;
+}
+hr.divider {
+  border-top: 1px solid #1f2833;
+}
+
+/* Blinking animations */
+@keyframes blink-veg-anim {
+  0%,
+  100% {
+    background-color: transparent;
+    color: var(--muted);
+    text-shadow: none;
+  }
+  50% {
+    background-color: rgba(69, 162, 158, 0.2);
+    color: var(--accent);
+    text-shadow: 0 0 8px var(--accent);
+  }
+}
+@keyframes blink-flw-anim {
+  0%,
+  100% {
+    background-color: transparent;
+    color: var(--muted);
+    text-shadow: none;
+  }
+  50% {
+    background-color: rgba(157, 78, 221, 0.2);
+    color: var(--flower);
+    text-shadow: 0 0 8px var(--flower);
+  }
+}
+.blink-veg {
+  animation: blink-veg-anim 1.5s infinite;
+}
+.blink-flower {
+  animation: blink-flw-anim 1.5s infinite;
+}

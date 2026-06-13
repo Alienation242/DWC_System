@@ -1,30 +1,48 @@
 .pot-card {
-  margin: 10px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  height: 80vh; /* Card takes up most of the screen height */
+  max-height: 800px;
 }
+
+/* This is the magic wrapper that makes scrolling work inside the card */
+.card-scroll-area {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 5px;
+  flex: 1; /* Takes up remaining space below header */
+}
+
+/* Gauge layout */
 .gauge-row {
   display: flex;
   justify-content: space-around;
   text-align: center;
-  margin: 15px 0;
+  margin: 10px 0 20px 0;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
 }
 .gauge .value {
   font-size: 1.8rem;
   font-weight: bold;
+  margin-top: 5px;
 }
+
+/* Fix Chart.js Canvas sizing */
+.chart-container {
+  position: relative;
+  height: 220px; /* Force strict height */
+  width: 100%;
+  margin: 20px 0;
+}
+
 .tank-status {
   display: flex;
   gap: 20px;
   align-items: center;
   justify-content: center;
-  margin: 15px 0;
-}
-.chart-container {
-  height: 250px;
-  margin: 20px 0;
-}
-.table-container {
-  overflow-x: auto;
-}
-table {
-  width: 100%;
+  margin-bottom: 20px;
+  font-weight: bold;
 }

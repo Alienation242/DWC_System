@@ -1,9 +1,49 @@
+/* Force the app component to fill the screen */
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Force the sidenav container to take up all remaining space below the toolbar */
+mat-sidenav-container {
+  flex: 1;
+  background: transparent;
+}
+
+mat-sidenav {
+  width: 200px; /* Give your sidebar a fixed width */
+}
+
 .spacer {
   flex: 1 1 auto;
 }
+
 .content {
   padding: 20px;
+  height: 100%;
+  box-sizing: border-box;
 }
+
 .active {
   background-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-selector-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.simple-theme-select {
+  background: var(--bg-panel, #2c3e50);
+  color: var(--text, white);
+  border: 1px solid var(--accent, #45a29e);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: inherit;
+  cursor: pointer;
 }

@@ -1,7 +1,22 @@
 <mat-toolbar color="primary">
   <span>🌿 DWC Controller</span>
+
   <span class="spacer"></span>
-  <span class="status-text">Online</span>
+
+  <div class="theme-selector-container">
+    <span style="font-size: 12px; margin-right: 10px">THEME:</span>
+    <select
+      class="simple-theme-select"
+      [(ngModel)]="currentTheme"
+      (change)="setTheme(currentTheme)"
+    >
+      <option value="theme-default">Default Light</option>
+      <option value="theme-pipboy-mono">Pip-Boy 3000</option>
+      <option value="theme-bioshock">Rapture Botany</option>
+    </select>
+  </div>
+
+  <span class="status-text" style="margin-left: 20px">Online</span>
 </mat-toolbar>
 
 <mat-sidenav-container>
