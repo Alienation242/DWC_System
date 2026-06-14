@@ -2,6 +2,7 @@ module.exports = (engine, hardwareComms) => {
   const express = require("express");
   const router = express.Router();
 
+  // Emergency stop
   router.post("/stop", async (req, res) => {
     try {
       const seq = hardwareComms.nextSeq();
@@ -12,6 +13,7 @@ module.exports = (engine, hardwareComms) => {
     }
   });
 
+  // Dose (water, pH up/down, nutrients)
   router.post("/dose", async (req, res) => {
     const { pumpName, actionStr, ml, potId = "A" } = req.body;
     if (!pumpName || !actionStr || !ml) {
@@ -50,6 +52,7 @@ module.exports = (engine, hardwareComms) => {
     }
   });
 
+  // Deliver mixed solution to a specific pot
   router.post("/deliver", async (req, res) => {
     const { target, volumeMl } = req.body;
     if (!target || !volumeMl) {

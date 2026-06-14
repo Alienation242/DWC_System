@@ -9,7 +9,7 @@ const fs = require("fs").promises;
 const MqttService = require("./services/mqttService");
 const RecipeEngine = require("./services/recipeEngine");
 
-// API route modules
+// API routes
 const calibrationRoutes = require("./api/calibration");
 const watchdogRoutes = require("./api/watchdog");
 const nutrientRoutes = require("./api/nutrient");
@@ -23,11 +23,10 @@ const prisma = new PrismaClient();
 
 app.use(cors());
 app.use(express.json());
-app.use("/api/watchdog", watchdogRoutes);
 
-// ==========================================
-// AUTO-SEED (unchanged, keep as is)
-// ==========================================
+// ------------------------------------------------------------
+// AUTO-SEED database with default state & watchdog configs
+// ------------------------------------------------------------
 async function autoSeed() {
   console.log("🔍 Checking database state...");
   let systemConfig = {
@@ -37,12 +36,13 @@ async function autoSeed() {
     const configPath = path.join(process.cwd(), "config", "system.json");
     const raw = await fs.readFile(configPath, "utf8");
     systemConfig = JSON.parse(raw);
-  } catch (err) {
+  } catch {
     console.warn(
       "⚠️ Could not load system.json, using default watchdog limits",
     );
   }
 
+  // Ensure SystemState exists
   let state = await prisma.systemState.findUnique({ where: { id: 1 } });
   if (!state) {
     console.log("🌱 SystemState missing – creating default...");
@@ -57,6 +57,7 @@ async function autoSeed() {
     });
   }
 
+  // Seed watchdog configs for all pumps (only in production)
   if (process.env.NODE_ENV !== "test") {
     const requiredPumps = [
       { name: "pH_Down", limit: 20.0 },
@@ -69,10 +70,10 @@ async function autoSeed() {
       { name: "Water", limit: 20000.0 },
     ];
     for (const pump of requiredPumps) {
-      let config = await prisma.watchdogConfig.findUnique({
+      const exists = await prisma.watchdogConfig.findUnique({
         where: { pumpName: pump.name },
       });
-      if (!config) {
+      if (!exists) {
         console.log(`🛡️ Creating Watchdog Config for ${pump.name}...`);
         await prisma.watchdogConfig.create({
           data: {
@@ -89,7 +90,9 @@ async function autoSeed() {
   return state;
 }
 
-// ------------------ WebSockets ------------------
+// ------------------------------------------------------------
+// WebSocket server (for real‑time telemetry)
+// ------------------------------------------------------------
 const io = new Server(server, { cors: { origin: "*" } });
 io.on("connection", (socket) => {
   console.log(`💻 Dashboard Client Connected: ${socket.id}`);
@@ -98,18 +101,19 @@ io.on("connection", (socket) => {
   );
 });
 
-// ------------------ MQTT & Engine ------------------
+// ------------------------------------------------------------
+// MQTT & Recipe Engine
+// ------------------------------------------------------------
 const hardwareComms = new MqttService(io);
 const engine = new RecipeEngine(hardwareComms);
 
-// ==========================================
-// API ROUTES – direct registration (clean & simple)
-// ==========================================
+// ------------------------------------------------------------
+// Register API routes
+// ------------------------------------------------------------
 app.use("/api/calibration", calibrationRoutes);
 app.use("/api/watchdog", watchdogRoutes);
 app.use("/api/nutrient-config", nutrientRoutes);
 app.use("/api/telemetry", telemetryRoutes);
-// Routes that need engine or hardwareComms
 app.use("/api/system", systemFactory(engine));
 app.use("/api/manual", manualFactory(engine, hardwareComms));
 
@@ -122,33 +126,33 @@ app.get("/api/status", (req, res) => {
   });
 });
 
-// ==========================================
-// TRIGGER FIRST TICK ON FIRST TELEMETRY
-// ==========================================
+// ------------------------------------------------------------
+// Autonomous engine tick (every 5 minutes)
+// ------------------------------------------------------------
 let firstTelemetryReceived = false;
 hardwareComms.on("telemetry", () => {
   if (!firstTelemetryReceived) {
     firstTelemetryReceived = true;
-    console.log(
-      "📡 First telemetry received – triggering initial engine tick immediately.",
-    );
+    console.log("📡 First telemetry – triggering initial engine tick.");
     engine.executeTick().catch(console.error);
   }
 });
 
-// ------------------ Cron Loop ------------------
 const TICK_INTERVAL_MS = 5 * 60 * 1000;
 async function runEngineLoop() {
   await engine.executeTick();
   setTimeout(runEngineLoop, TICK_INTERVAL_MS);
 }
 
-// ------------------ Start Server ------------------
+// ------------------------------------------------------------
+// Start server
+// ------------------------------------------------------------
 const PORT = process.env.PORT || 3000;
 
 if (require.main === module) {
   autoSeed()
     .then(async () => {
+      // Clear any orphaned batch
       const incompleteBatch = await prisma.batchState.findFirst({
         where: { active: true },
       });
@@ -163,13 +167,13 @@ if (require.main === module) {
       server.listen(PORT, () => {
         console.log(`\n🚀 Smart DWC Server running on port ${PORT}`);
         console.log(
-          `⏱️  Autonomous Engine Tick set to ${TICK_INTERVAL_MS / 1000 / 60} minutes.`,
+          `⏱️  Engine tick interval: ${TICK_INTERVAL_MS / 1000 / 60} minutes`,
         );
         setTimeout(runEngineLoop, 5000);
       });
     })
     .catch((err) => {
-      console.error("❌ Failed to seed database on startup:", err);
+      console.error("❌ Failed to seed database:", err);
       process.exit(1);
     });
 }

@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 class Watchdog {
   static async isSafeToDose(pumpName, ml, potId = "A") {
     const isWater = pumpName.toLowerCase().includes("water");
-    if (isWater) return true; // Water is always safe, no config
+    if (isWater) return true;
 
     let config = await prisma.watchdogConfig.findUnique({
       where: { pumpName },
@@ -16,7 +16,7 @@ class Watchdog {
     }
     if (!config.enabled) return false;
 
-    // Cooldown check per pot
+    // Cooldown check (per pot)
     const lastDose = await prisma.doseLog.findFirst({
       where: { pumpName, potId, status: "SUCCESS" },
       orderBy: { timestamp: "desc" },
@@ -29,7 +29,7 @@ class Watchdog {
       return false;
     }
 
-    // Daily limit check per pot
+    // Daily limit check (per pot)
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const aggregate = await prisma.doseLog.aggregate({

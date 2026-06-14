@@ -19,7 +19,7 @@ describe("System Integrity - Watchdog & Database Constraints", () => {
       enabled: true,
       cooldownSecs: 30,
     });
-    const isSafe = await Watchdog.isSafeToDose("Micro", 2.0);
+    const isSafe = await Watchdog.isSafeToDose("Micro", 2.0, "A"); // add potId
     expect(isSafe).toBe(false);
   });
 
@@ -29,7 +29,7 @@ describe("System Integrity - Watchdog & Database Constraints", () => {
       dailyLimitMl: 10.0,
     });
     mockPrisma.doseLog.aggregate.mockResolvedValue({ _sum: { ml: 12.0 } });
-    const isSafe = await Watchdog.isSafeToDose("Micro", 2.0);
+    const isSafe = await Watchdog.isSafeToDose("Micro", 2.0, "A"); // add potId
     expect(isSafe).toBe(false);
   });
 

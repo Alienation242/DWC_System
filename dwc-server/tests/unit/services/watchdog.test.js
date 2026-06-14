@@ -71,7 +71,6 @@ describe("Watchdog Unit Tests", () => {
   test("bypasses daily limit for water", async () => {
     const safe = await Watchdog.isSafeToDose("Water", 5000, testPotId);
     expect(safe).toBe(true);
-    // water should never call findUnique/create
     expect(mockPrisma.watchdogConfig.findUnique).not.toHaveBeenCalled();
   });
 

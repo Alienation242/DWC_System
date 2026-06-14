@@ -8,46 +8,43 @@ generator client {
 }
 
 // Raw telemetry from ESP32 Sensor Node
-model telemetryLog {
-  id                 Int      @id @default(autoincrement())
-  potId              String   @default("A")
-  rawPH              Int
-  rawEC              Int
-  realPH             Float
-  realEC             Float
-  isTankEmpty        Boolean
-  isTankOverflowing  Boolean
-  timestamp          DateTime @default(now())
+model TelemetryLog {
+  id                Int      @id @default(autoincrement())
+  potId             String
+  rawPH             Int
+  rawEC             Int
+  realPH            Float
+  realEC            Float
+  isTankEmpty       Boolean
+  isTankOverflowing Boolean
+  timestamp         DateTime @default(now())
 }
 
 // Persistent cultivation cycle state
 model SystemState {
-  id               Int      @id @default(1)
-  currentStrain    String   @default("auto_kush")      // key for recipe
-  currentProfilePath String @default("./recipes/default.json")
-  cycleStartDate   DateTime @default(now())
-  currentDay       Int      @default(1)
-  automationMode   String   @default("AUTOMATED")      // or "MANUAL_OVERRIDE"
-  lastDoseTime     DateTime?
-  sysVol           Float    @default(18.0)             // actual reservoir liters
+  id                Int      @id @default(1)
+  currentStrain     String
+  currentProfilePath String
+  currentDay        Int
+  automationMode    String
+  sysVol            Float
 }
 
 // Every successful or blocked dose (watchdog uses this)
-model doseLog {
+model DoseLog {
   id        Int      @id @default(autoincrement())
-  potId     String   @default("A")
   pumpName  String
   ml        Float
+  potId     String   @default("A")
   status    String
   timestamp DateTime @default(now())
 }
 
 // Watchdog configuration per pump
 model WatchdogConfig {
-  id            Int      @id @default(autoincrement())
-  pumpName      String   @unique
-  dailyLimitMl  Float    @default(15.0)
-  cooldownSecs  Int      @default(30)
+  pumpName      String   @id
+  dailyLimitMl  Float
+  cooldownSecs  Int
   enabled       Boolean  @default(true)
   updatedAt     DateTime @updatedAt
 }

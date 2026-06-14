@@ -1,34 +1,32 @@
 const express = require("express");
-const router = express.Router();
 const { PrismaClient } = require("@prisma/client");
-
 const prisma = new PrismaClient();
+const router = express.Router();
 
-// Import the class so you can use its logic if needed in other routes
-// Adjust the relative path if your folders are structured differently
-const Watchdog = require("../services/watchdog");
-
-// GET /api/watchdog/config
+// GET all watchdog configs
 router.get("/config", async (req, res) => {
   try {
     const configs = await prisma.watchdogConfig.findMany();
     res.json(configs);
-  } catch (error) {
-    console.error("Error fetching watchdog configs:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+  } catch (err) {
+    console.error("GET /api/watchdog/config error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Example: Using the class inside a route
-router.post("/check-dose", async (req, res) => {
+// POST upsert a watchdog config
+router.post("/config", async (req, res) => {
   try {
-    const { pumpName, ml, potId } = req.body;
-    const isSafe = await Watchdog.isSafeToDose(pumpName, ml, potId);
-
-    res.json({ safe: isSafe });
-  } catch (error) {
-    console.error("Error checking dose safety:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    const { pumpName, dailyLimitMl, cooldownSecs, enabled } = req.body;
+    const config = await prisma.watchdogConfig.upsert({
+      where: { pumpName },
+      update: { dailyLimitMl, cooldownSecs, enabled },
+      create: { pumpName, dailyLimitMl, cooldownSecs, enabled },
+    });
+    res.json(config);
+  } catch (err) {
+    console.error("POST /api/watchdog/config error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 

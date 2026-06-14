@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -32,12 +32,13 @@ export class PotDetailComponent implements OnInit, OnDestroy {
   potId!: string;
   telemetry: Telemetry | null = null;
   recentDoses: any[] = [];
-  historyLoaded: boolean = false;
+  historyLoaded = false;
   private subs = new Subscription();
 
   @ViewChild('phCanvas') phChart?: BaseChartDirective;
   @ViewChild('ecCanvas') ecChart?: BaseChartDirective;
 
+  // Numeric x‑axis (seconds ago)
   public chartOptions: ChartConfiguration<'line'>['options'] = {
     responsive: true,
     animation: false,
@@ -45,30 +46,31 @@ export class PotDetailComponent implements OnInit, OnDestroy {
     plugins: { legend: { display: false } },
     elements: {
       point: { radius: 0, hitRadius: 10, hoverRadius: 5 },
-      line: {
-        tension: 0,
-        borderWidth: 2,
-      },
+      line: { tension: 0, borderWidth: 2 },
     },
     scales: {
       x: {
-        ticks: { color: 'var(--text)', maxTicksLimit: 8 },
+        type: 'linear',
+        title: { display: true, text: 'Time (seconds ago)', color: 'var(--text)' },
+        ticks: {
+          color: 'var(--text)',
+          callback: (val) => `${Math.round(Number(val))}s ago`,
+        },
         grid: { color: 'rgba(150,150,150,0.1)' },
       },
-      y: { ticks: { color: 'var(--text)' }, grid: { color: 'rgba(150,150,150,0.1)' } },
+      y: {
+        ticks: { color: 'var(--text)' },
+        grid: { color: 'rgba(150,150,150,0.1)' },
+      },
     },
   };
 
   public phChartData: ChartConfiguration<'line'>['data'] = {
-    // FIX 2: Set fill to false to remove the blob under the arc
     datasets: [{ data: [], borderColor: '#4cbfa6', fill: false }],
-    labels: [],
   };
 
   public ecChartData: ChartConfiguration<'line'>['data'] = {
-    // FIX 3: Set fill to false and strictly use the BioShock Gold/Brass accent
     datasets: [{ data: [], borderColor: '#dfb953', fill: false }],
-    labels: [],
   };
 
   displayedColumns = ['timestamp', 'pumpName', 'ml', 'status'];
@@ -77,6 +79,7 @@ export class PotDetailComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private socket: SocketService,
     private api: ApiService,
+    private cdr: ChangeDetectorRef, // <-- add this
   ) {}
 
   ngOnInit() {
@@ -89,6 +92,7 @@ export class PotDetailComponent implements OnInit, OnDestroy {
           this.telemetry = data;
           if (this.historyLoaded) {
             this.pushLivePoint(data);
+            this.cdr.detectChanges(); // force update
           }
         }
       }),
@@ -99,10 +103,10 @@ export class PotDetailComponent implements OnInit, OnDestroy {
     this.historyLoaded = false;
     this.api.getLatestTelemetry(this.potId).subscribe((data) => (this.telemetry = data));
 
-    // Force Angular Material Table to detect the new array
     this.api.getRecentDoses(this.potId, 20).subscribe({
       next: (data) => {
         this.recentDoses = [...data];
+        this.cdr.detectChanges();
       },
       error: (err) => console.error('Failed to load doses:', err),
     });
@@ -111,85 +115,70 @@ export class PotDetailComponent implements OnInit, OnDestroy {
       next: (history) => {
         history.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
         const recentHistory = history.slice(-50);
+        const baseTime = recentHistory.length
+          ? new Date(recentHistory[recentHistory.length - 1].timestamp).getTime()
+          : Date.now();
 
-        const parsedLabels: string[] = [];
-        const parsedPh: number[] = [];
-        const parsedEc: number[] = [];
+        const phPoints: { x: number; y: number }[] = [];
+        const ecPoints: { x: number; y: number }[] = [];
 
-        recentHistory.forEach((d) => {
-          const safeStr = d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp + 'Z';
-          const timeLabel = new Date(safeStr).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-          });
+        for (const d of recentHistory) {
+          const pointTime = new Date(d.timestamp).getTime();
+          const secondsAgo = Math.round((baseTime - pointTime) / 1000);
+          phPoints.push({ x: secondsAgo, y: Number(d.realPH) || 0 });
+          ecPoints.push({ x: secondsAgo, y: Math.round(Number(d.realEC) || 0) });
+        }
 
-          parsedLabels.push(timeLabel);
+        // oldest first (negative secondsAgo)
+        phPoints.reverse();
+        ecPoints.reverse();
 
-          // CRITICAL FIX: Ensure they are numbers before using toFixed or Math.round
-          const phNum = Number(d.realPH) || 0;
-          const ecNum = Number(d.realEC) || 0;
-
-          parsedPh.push(parseFloat(phNum.toFixed(2)));
-          parsedEc.push(Math.round(ecNum));
-        });
-
-        this.phChartData.labels = parsedLabels;
-        this.phChartData.datasets[0].data = parsedPh;
-        this.ecChartData.labels = parsedLabels;
-        this.ecChartData.datasets[0].data = parsedEc;
+        this.phChartData.datasets[0].data = phPoints;
+        this.ecChartData.datasets[0].data = ecPoints;
 
         this.historyLoaded = true;
         this.phChart?.update();
         this.ecChart?.update();
+        this.cdr.detectChanges();
       },
       error: (err) => {
         console.error('Failed to load history:', err);
-        this.historyLoaded = true; // Unlock it anyway so live data works
+        this.historyLoaded = true;
       },
     });
   }
 
   pushLivePoint(data: Telemetry) {
-    const safeStr = data.timestamp
-      ? data.timestamp.endsWith('Z')
-        ? data.timestamp
-        : data.timestamp + 'Z'
-      : undefined;
-    const timeNow = safeStr ? new Date(safeStr) : new Date();
-
-    const timeStr = timeNow.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-
-    const lastLabel = this.phChartData.labels?.[this.phChartData.labels.length - 1];
-    if (lastLabel === timeStr) return;
-
-    // CRITICAL FIX: Safe number parsing for live points
-    const phNum = Number(data.realPH) || 0;
-    const ecNum = Number(data.realEC) || 0;
-    const cleanPh = parseFloat(phNum.toFixed(2));
-    const cleanEc = Math.round(ecNum);
-
-    const newLabels = [...(this.phChartData.labels as string[]), timeStr];
-    const newPhData = [...this.phChartData.datasets[0].data, cleanPh];
-    const newEcData = [...this.ecChartData.datasets[0].data, cleanEc];
-
-    if (newLabels.length > 50) {
-      newLabels.shift();
-      newPhData.shift();
-      newEcData.shift();
+    const currentPoints = this.phChartData.datasets[0].data as { x: number; y: number }[];
+    const lastPoint = currentPoints.length ? currentPoints[currentPoints.length - 1] : null;
+    let newX = 0;
+    if (lastPoint && lastPoint.x < 0) {
+      newX = lastPoint.x + 1; // keep moving right
+    } else {
+      newX = (lastPoint?.x || 0) + 1;
     }
 
-    this.phChartData.labels = newLabels;
+    const phNum = Number(data.realPH) || 0;
+    const ecNum = Number(data.realEC) || 0;
+    const newPhPoint = { x: newX, y: parseFloat(phNum.toFixed(2)) };
+    const newEcPoint = { x: newX, y: Math.round(ecNum) };
+
+    let newPhData = [...currentPoints, newPhPoint];
+    let newEcData = [
+      ...(this.ecChartData.datasets[0].data as { x: number; y: number }[]),
+      newEcPoint,
+    ];
+
+    if (newPhData.length > 50) {
+      newPhData = newPhData.slice(-50);
+      newEcData = newEcData.slice(-50);
+    }
+
     this.phChartData.datasets[0].data = newPhData;
-    this.ecChartData.labels = newLabels;
     this.ecChartData.datasets[0].data = newEcData;
 
-    this.phChart?.update();
-    this.ecChart?.update();
+    this.phChart?.update('none');
+    this.ecChart?.update('none');
   }
 
   ngOnDestroy() {
