@@ -98,42 +98,55 @@ export class PotDetailComponent implements OnInit, OnDestroy {
   loadData() {
     this.historyLoaded = false;
     this.api.getLatestTelemetry(this.potId).subscribe((data) => (this.telemetry = data));
-    this.api.getRecentDoses(this.potId, 20).subscribe((data) => (this.recentDoses = data));
 
-    // 1. Ask the backend for a larger pool of history to bypass the sorting bug
-    this.api.getTelemetryHistory(this.potId, 500).subscribe((history) => {
-      // 2. Sort the data chronologically (oldest to newest)
-      history.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    // Force Angular Material Table to detect the new array
+    this.api.getRecentDoses(this.potId, 20).subscribe({
+      next: (data) => {
+        this.recentDoses = [...data];
+      },
+      error: (err) => console.error('Failed to load doses:', err),
+    });
 
-      // 3. THE GAP FIX: Slice ONLY the most recent 50 points from the very end of the timeline
-      const recentHistory = history.slice(-50);
+    this.api.getTelemetryHistory(this.potId, 500).subscribe({
+      next: (history) => {
+        history.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        const recentHistory = history.slice(-50);
 
-      const parsedLabels: string[] = [];
-      const parsedPh: number[] = [];
-      const parsedEc: number[] = [];
+        const parsedLabels: string[] = [];
+        const parsedPh: number[] = [];
+        const parsedEc: number[] = [];
 
-      recentHistory.forEach((d) => {
-        const safeStr = d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp + 'Z';
-        const timeLabel = new Date(safeStr).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
+        recentHistory.forEach((d) => {
+          const safeStr = d.timestamp.endsWith('Z') ? d.timestamp : d.timestamp + 'Z';
+          const timeLabel = new Date(safeStr).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          });
+
+          parsedLabels.push(timeLabel);
+
+          // CRITICAL FIX: Ensure they are numbers before using toFixed or Math.round
+          const phNum = Number(d.realPH) || 0;
+          const ecNum = Number(d.realEC) || 0;
+
+          parsedPh.push(parseFloat(phNum.toFixed(2)));
+          parsedEc.push(Math.round(ecNum));
         });
 
-        parsedLabels.push(timeLabel);
-        // 4. THE AXIS FIX: Strip the massive floating-point decimals
-        parsedPh.push(parseFloat(d.realPH.toFixed(2)));
-        parsedEc.push(Math.round(d.realEC));
-      });
+        this.phChartData.labels = parsedLabels;
+        this.phChartData.datasets[0].data = parsedPh;
+        this.ecChartData.labels = parsedLabels;
+        this.ecChartData.datasets[0].data = parsedEc;
 
-      this.phChartData.labels = parsedLabels;
-      this.phChartData.datasets[0].data = parsedPh;
-      this.ecChartData.labels = parsedLabels;
-      this.ecChartData.datasets[0].data = parsedEc;
-
-      this.historyLoaded = true;
-      this.phChart?.update();
-      this.ecChart?.update();
+        this.historyLoaded = true;
+        this.phChart?.update();
+        this.ecChart?.update();
+      },
+      error: (err) => {
+        console.error('Failed to load history:', err);
+        this.historyLoaded = true; // Unlock it anyway so live data works
+      },
     });
   }
 
@@ -154,9 +167,11 @@ export class PotDetailComponent implements OnInit, OnDestroy {
     const lastLabel = this.phChartData.labels?.[this.phChartData.labels.length - 1];
     if (lastLabel === timeStr) return;
 
-    // Apply the same rounding logic to the live points
-    const cleanPh = parseFloat(data.realPH.toFixed(2));
-    const cleanEc = Math.round(data.realEC);
+    // CRITICAL FIX: Safe number parsing for live points
+    const phNum = Number(data.realPH) || 0;
+    const ecNum = Number(data.realEC) || 0;
+    const cleanPh = parseFloat(phNum.toFixed(2));
+    const cleanEc = Math.round(ecNum);
 
     const newLabels = [...(this.phChartData.labels as string[]), timeStr];
     const newPhData = [...this.phChartData.datasets[0].data, cleanPh];
