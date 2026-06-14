@@ -23,6 +23,7 @@ const prisma = new PrismaClient();
 
 app.use(cors());
 app.use(express.json());
+app.use("/api/watchdog", watchdogRoutes);
 
 // ==========================================
 // AUTO-SEED (unchanged, keep as is)

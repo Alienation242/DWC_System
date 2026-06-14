@@ -1,54 +1,35 @@
+const express = require("express");
+const router = express.Router();
 const { PrismaClient } = require("@prisma/client");
+
 const prisma = new PrismaClient();
 
-class Watchdog {
-  static async isSafeToDose(pumpName, ml, potId = "A") {
-    const isWater = pumpName.toLowerCase().includes("water");
-    if (isWater) return true; // Water is always safe, no config
+// Import the class so you can use its logic if needed in other routes
+// Adjust the relative path if your folders are structured differently
+const Watchdog = require("../services/watchdog");
 
-    let config = await prisma.watchdogConfig.findUnique({
-      where: { pumpName },
-    });
-    if (!config) {
-      config = await prisma.watchdogConfig.create({
-        data: { pumpName, dailyLimitMl: 15.0, cooldownSecs: 30, enabled: true },
-      });
-    }
-    if (!config.enabled) return false;
-
-    // Cooldown check per pot
-    const lastDose = await prisma.doseLog.findFirst({
-      where: { pumpName, potId, status: "SUCCESS" },
-      orderBy: { timestamp: "desc" },
-    });
-    if (
-      lastDose &&
-      Date.now() - lastDose.timestamp.getTime() < config.cooldownSecs * 1000
-    ) {
-      console.warn(`⏳ Cooldown active for ${pumpName} on pot ${potId}`);
-      return false;
-    }
-
-    // Daily limit check per pot
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const aggregate = await prisma.doseLog.aggregate({
-      where: { pumpName, potId, timestamp: { gte: startOfDay } },
-      _sum: { ml: true },
-    });
-    const totalToday = aggregate._sum.ml || 0;
-    if (totalToday + ml > config.dailyLimitMl) {
-      console.warn(`🚫 Daily limit exceeded for ${pumpName} on pot ${potId}`);
-      return false;
-    }
-    return true;
+// GET /api/watchdog/config
+router.get("/config", async (req, res) => {
+  try {
+    const configs = await prisma.watchdogConfig.findMany();
+    res.json(configs);
+  } catch (error) {
+    console.error("Error fetching watchdog configs:", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
+});
 
-  static async logSuccessfulDose(pumpName, ml, potId = "A") {
-    await prisma.doseLog.create({
-      data: { pumpName, ml, potId, status: "SUCCESS" },
-    });
+// Example: Using the class inside a route
+router.post("/check-dose", async (req, res) => {
+  try {
+    const { pumpName, ml, potId } = req.body;
+    const isSafe = await Watchdog.isSafeToDose(pumpName, ml, potId);
+
+    res.json({ safe: isSafe });
+  } catch (error) {
+    console.error("Error checking dose safety:", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
-}
+});
 
-module.exports = Watchdog;
+module.exports = router;
