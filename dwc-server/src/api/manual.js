@@ -13,7 +13,7 @@ module.exports = (engine, hardwareComms) => {
   });
 
   router.post("/dose", async (req, res) => {
-    const { pumpName, actionStr, ml } = req.body;
+    const { pumpName, actionStr, ml, potId = "A" } = req.body;
     if (!pumpName || !actionStr || !ml) {
       return res
         .status(400)
@@ -26,20 +26,24 @@ module.exports = (engine, hardwareComms) => {
           "Water",
           "dose_water",
           250,
+          { potId },
         );
         const phDosed = await engine.executePumpAndWait(
           pumpName,
           actionStr,
           ml,
+          { potId },
         );
         res.json({
           success: true,
           dosedMl: waterDosed + phDosed,
-          details: { water: waterDosed, ph: phDosed },
+          details: { water: waterDosed, ph: phDosed, potId },
         });
       } else {
-        const dosed = await engine.executePumpAndWait(pumpName, actionStr, ml);
-        res.json({ success: true, dosedMl: dosed });
+        const dosed = await engine.executePumpAndWait(pumpName, actionStr, ml, {
+          potId,
+        });
+        res.json({ success: true, dosedMl: dosed, potId });
       }
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -53,7 +57,10 @@ module.exports = (engine, hardwareComms) => {
     }
     try {
       await engine._deliverToPot(volumeMl, target);
-      res.json({ success: true, message: "Delivery completed" });
+      res.json({
+        success: true,
+        message: `Delivered ${volumeMl}ml to pot ${target}`,
+      });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

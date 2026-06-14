@@ -31,6 +31,9 @@ export class ManualComponent {
   deliverTarget = 'A';
   deliverVol = 1000;
 
+  // New: pot selector for dosing
+  dosePot = 'A';
+
   constructor(
     private api: ApiService,
     private snack: MatSnackBar,
@@ -42,20 +45,30 @@ export class ManualComponent {
 
   doseWater() {
     this.api
-      .dose('Water', 'dose_water', this.waterVol)
-      .subscribe((r) => this.snack.open(`Dosed ${r.dosedMl} ml`, 'OK'));
+      .dose('Water', 'dose_water', this.waterVol, this.dosePot)
+      .subscribe((r) =>
+        this.snack.open(`Dosed ${r.dosedMl} ml water to pot ${r.potId || this.dosePot}`, 'OK'),
+      );
   }
 
   dosePhDown() {
-    this.api.dose('pH_Down', 'dose_ph_down', this.phDownVol).subscribe({
-      next: (r) => this.snack.open(`Dosed ${r.dosedMl} ml pH Down (includes carrier water)`, 'OK'),
+    this.api.dose('pH_Down', 'dose_ph_down', this.phDownVol, this.dosePot).subscribe({
+      next: (r) =>
+        this.snack.open(
+          `Dosed ${r.dosedMl} ml pH Down to pot ${r.potId || this.dosePot} (includes carrier water)`,
+          'OK',
+        ),
       error: (err) => this.snack.open(`Error: ${err.message}`, 'Close'),
     });
   }
 
   dosePhUp() {
-    this.api.dose('pH_Up', 'dose_ph_up', this.phUpVol).subscribe({
-      next: (r) => this.snack.open(`Dosed ${r.dosedMl} ml pH Up (includes carrier water)`, 'OK'),
+    this.api.dose('pH_Up', 'dose_ph_up', this.phUpVol, this.dosePot).subscribe({
+      next: (r) =>
+        this.snack.open(
+          `Dosed ${r.dosedMl} ml pH Up to pot ${r.potId || this.dosePot} (includes carrier water)`,
+          'OK',
+        ),
       error: (err) => this.snack.open(`Error: ${err.message}`, 'Close'),
     });
   }

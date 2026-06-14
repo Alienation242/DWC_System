@@ -105,12 +105,16 @@ export class ApiService {
   stopAll() {
     return this.http.post<{ success: boolean }>(`${this.base}/manual/stop`, {});
   }
-  dose(pumpName: string, actionStr: string, ml: number) {
-    return this.http.post<{ success: boolean; dosedMl: number }>(`${this.base}/manual/dose`, {
-      pumpName,
-      actionStr,
-      ml,
-    });
+  dose(pumpName: string, actionStr: string, ml: number, potId: string = 'A') {
+    return this.http.post<{ success: boolean; dosedMl: number; potId?: string }>(
+      `${this.base}/manual/dose`,
+      {
+        pumpName,
+        actionStr,
+        ml,
+        potId,
+      },
+    );
   }
   deliver(target: string, volumeMl: number) {
     return this.http.post<{ success: boolean }>(`${this.base}/manual/deliver`, {

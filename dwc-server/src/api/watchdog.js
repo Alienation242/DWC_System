@@ -1,34 +1,54 @@
-const express = require("express");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-const router = express.Router();
+class Watchdog {
+  static async isSafeToDose(pumpName, ml, potId = "A") {
+    const isWater = pumpName.toLowerCase().includes("water");
+    if (isWater) return true; // Water is always safe, no config
 
-// GET all watchdog configs (called by frontend at /api/watchdog/config)
-router.get("/config", async (req, res) => {
-  try {
-    const configs = await prisma.watchdogConfig.findMany();
-    res.json(configs);
-  } catch (err) {
-    console.error("GET /api/watchdog/config error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST upsert a single watchdog config
-router.post("/config", async (req, res) => {
-  try {
-    const { pumpName, dailyLimitMl, cooldownSecs, enabled } = req.body;
-    const config = await prisma.watchdogConfig.upsert({
+    let config = await prisma.watchdogConfig.findUnique({
       where: { pumpName },
-      update: { dailyLimitMl, cooldownSecs, enabled },
-      create: { pumpName, dailyLimitMl, cooldownSecs, enabled },
     });
-    res.json(config);
-  } catch (err) {
-    console.error("POST /api/watchdog/config error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+    if (!config) {
+      config = await prisma.watchdogConfig.create({
+        data: { pumpName, dailyLimitMl: 15.0, cooldownSecs: 30, enabled: true },
+      });
+    }
+    if (!config.enabled) return false;
 
-module.exports = router;
+    // Cooldown check per pot
+    const lastDose = await prisma.doseLog.findFirst({
+      where: { pumpName, potId, status: "SUCCESS" },
+      orderBy: { timestamp: "desc" },
+    });
+    if (
+      lastDose &&
+      Date.now() - lastDose.timestamp.getTime() < config.cooldownSecs * 1000
+    ) {
+      console.warn(`⏳ Cooldown active for ${pumpName} on pot ${potId}`);
+      return false;
+    }
+
+    // Daily limit check per pot
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const aggregate = await prisma.doseLog.aggregate({
+      where: { pumpName, potId, timestamp: { gte: startOfDay } },
+      _sum: { ml: true },
+    });
+    const totalToday = aggregate._sum.ml || 0;
+    if (totalToday + ml > config.dailyLimitMl) {
+      console.warn(`🚫 Daily limit exceeded for ${pumpName} on pot ${potId}`);
+      return false;
+    }
+    return true;
+  }
+
+  static async logSuccessfulDose(pumpName, ml, potId = "A") {
+    await prisma.doseLog.create({
+      data: { pumpName, ml, potId, status: "SUCCESS" },
+    });
+  }
+}
+
+module.exports = Watchdog;
