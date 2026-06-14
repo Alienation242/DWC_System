@@ -1,8 +1,24 @@
-<div class="detail-header">
-  <button mat-icon-button routerLink="/dashboard" style="margin-right: 15px">
-    <mat-icon>arrow_back</mat-icon>
-  </button>
-  <h2>Detailed Telemetry: Pot {{ potId }}</h2>
+<div class="detail-header" style="justify-content: space-between; flex-wrap: wrap; gap: 15px">
+  <div style="display: flex; align-items: center">
+    <button mat-icon-button routerLink="/dashboard" style="margin-right: 15px">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <h2>Detailed Telemetry: Pot {{ potId }}</h2>
+  </div>
+
+  <div class="time-controls" style="display: flex; gap: 5px">
+    <button
+      mat-button
+      *ngFor="let w of timeWindows"
+      (click)="setWindow(w.value)"
+      [ngStyle]="{
+        background:
+          selectedWindow === w.value ? 'var(--muted, rgba(255,255,255,0.15))' : 'transparent',
+      }"
+    >
+      {{ w.label }}
+    </button>
+  </div>
 </div>
 
 <div class="charts-grid">
@@ -13,22 +29,25 @@
         baseChart
         #phCanvas="base-chart"
         [data]="phChartData"
-        [options]="chartOptions"
+        [options]="phChartOptions"
         type="line"
       ></canvas>
     </div>
   </mat-card>
 
   <mat-card class="big-chart-card">
-    <mat-card-header
-      ><mat-card-title>EC Nutrient Concentration (µS/cm)</mat-card-title></mat-card-header
-    >
+    <mat-card-header>
+      <mat-card-title (click)="toggleUnit()" style="cursor: pointer; user-select: none">
+        {{ chartTitle }}
+        <span style="font-size: 0.8rem; margin-left: 8px">↻</span>
+      </mat-card-title>
+    </mat-card-header>
     <div class="chart-wrapper">
       <canvas
         baseChart
         #ecCanvas="base-chart"
         [data]="ecChartData"
-        [options]="chartOptions"
+        [options]="ecChartOptions"
         type="line"
       ></canvas>
     </div>

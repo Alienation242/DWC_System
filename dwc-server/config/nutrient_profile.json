@@ -2,5 +2,11 @@
   "brandName": "Terra Aquatica (General Hydroponics)",
   "carrierFluid": "RO Water",
   "carrierVolumeMl": 1000,
-  "mixingSequence": ["CalMag", "Micro", "Gro", "Bloom", "Finisher"]
+  "mixingSequence": [
+    "CalMag",
+    "Micro",
+    "Gro",
+    "Bloom",
+    "Finisher"
+  ]
 }
