@@ -32,6 +32,12 @@ export class SocketService {
     });
   }
 
+  onDoseComplete(): Observable<any> {
+    return new Observable((observer) => {
+      this.socket.on('pump_message', (data) => observer.next(data));
+    });
+  }
+
   onNetworkUpdate(): Observable<any> {
     return new Observable((observer) => {
       this.socket.on('network_update', (data: any) => observer.next(data));

@@ -115,6 +115,7 @@ export class PotDetailComponent implements OnInit, AfterViewInit, OnDestroy {
         },
         y: {
           title: { display: true, text: yTitle, color: 'var(--text)' },
+          grace: '5%',
           ticks: {
             color: 'var(--text)',
             callback:
@@ -192,6 +193,20 @@ export class PotDetailComponent implements OnInit, AfterViewInit, OnDestroy {
             this.cdr.detectChanges();
           }
         }
+      }),
+    );
+
+    this.subs.add(
+      this.socket.onDoseComplete().subscribe((doseData) => {
+        const newDose = {
+          timestamp: new Date().toISOString(),
+          pumpName: doseData.pumpName || 'System',
+          ml: doseData.volume_ml || doseData.ml,
+          status: 'SUCCESS',
+        };
+
+        this.recentDoses = [newDose, ...this.recentDoses].slice(0, 20);
+        this.cdr.detectChanges();
       }),
     );
   }
