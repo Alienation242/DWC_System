@@ -590,6 +590,17 @@ class RecipeEngine {
     }
 
     await Watchdog.logSuccessfulDose(pumpName, safeMl, potId);
+
+    if (this.mqtt.io) {
+      this.mqtt.io.emit("dose_logged", {
+        potId: potId,
+        pumpName: pumpName,
+        ml: safeMl,
+        status: "SUCCESS",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     return safeMl;
   }
 

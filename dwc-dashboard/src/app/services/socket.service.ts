@@ -32,9 +32,9 @@ export class SocketService {
     });
   }
 
-  onDoseComplete(): Observable<any> {
-    return new Observable((observer) => {
-      this.socket.on('pump_message', (data) => observer.next(data));
+  onDoseComplete() {
+    return new Observable<any>((observer) => {
+      this.socket.on('dose_logged', (data) => observer.next(data));
     });
   }
 
