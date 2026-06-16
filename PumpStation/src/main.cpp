@@ -60,7 +60,8 @@ uint32_t currentDoseSeq = 0;
 float currentDoseRequestedMl = 0;
 
 float PERISTALTIC_ML_PER_SEC = 2.0;   
-float SUBMERSIBLE_ML_PER_SEC = 50.0;  
+float CARRIER_WATER_ML_PER_SEC = 50.0;
+float DELIVERY_ML_PER_SEC = 50.0;
 const unsigned long MAX_RUNTIME_MS = 600000; 
 
 // ========== 4. FAIL-SAFE LOGIC ==========
@@ -159,7 +160,7 @@ void startDelivery(const char* target, float ml) {
   else if (strcmp(target, "D") == 0) activeValvePin = RELAY_VALVE_D;
   else return;
 
-  unsigned long durationMs = (unsigned long)((ml / SUBMERSIBLE_ML_PER_SEC) * 1000);
+  unsigned long durationMs = (unsigned long)((ml / DELIVERY_ML_PER_SEC) * 1000);
   if (durationMs > MAX_RUNTIME_MS) durationMs = MAX_RUNTIME_MS;
 
   isSystemBusy = true;
@@ -222,7 +223,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   else if (strcmp(action, "dose_micro") == 0) startDosing(RELAY_MICRO, ml, "Micro", seq, PERISTALTIC_ML_PER_SEC);
   else if (strcmp(action, "dose_calmag") == 0) startDosing(RELAY_CALMAG, ml, "CalMag", seq, PERISTALTIC_ML_PER_SEC);
   else if (strcmp(action, "dose_gro_fin_relay") == 0) startDosing(RELAY_GRO_FIN, ml, "Gro/Finisher", seq, PERISTALTIC_ML_PER_SEC);
-  else if (strcmp(action, "dose_water") == 0) startDosing(RELAY_RO_WATER, ml, "RO Carrier Water", seq, SUBMERSIBLE_ML_PER_SEC);
+  else if (strcmp(action, "dose_water") == 0) startDosing(RELAY_RO_WATER, ml, "RO Carrier Water", seq, CARRIER_WATER_ML_PER_SEC);
   
   else if (strcmp(action, "deliver") == 0) {
     const char* target = doc["target"] | "Unknown";
@@ -322,7 +323,7 @@ void setup() {
     pinMode(pin, OUTPUT);   // THEN connect the pin to the output driver
   }
 
-  // 3. RESUME INTERRUPTED DOSE (if valid)
+// 3. RESUME INTERRUPTED DOSE (if valid)
   if (pendingDosePin != -1 && pendingDoseDuration > 0) {
     Serial.printf("🔁 Resuming interrupted dose: pin %d for %lu ms (%.1f ml) seq=%u\n", 
                   pendingDosePin, pendingDoseDuration, pendingDoseMl, pendingDoseSeq);
@@ -331,21 +332,12 @@ void setup() {
     actionEndTime = millis() + pendingDoseDuration;
     currentDoseStartTime = millis();
     
-    // Automatically inherit the correct flow rate on resume
-    currentDoseFlowRate = (pendingDosePin == RELAY_RO_WATER) ? SUBMERSIBLE_ML_PER_SEC : PERISTALTIC_ML_PER_SEC;
+    currentDoseFlowRate = (pendingDosePin == RELAY_RO_WATER) ? CARRIER_WATER_ML_PER_SEC : PERISTALTIC_ML_PER_SEC;
     
     currentDoseSeq = pendingDoseSeq;
     currentDoseRequestedMl = pendingDoseRequestedMl;
     digitalWrite(activeDosingPin, HIGH);
-    
-    JsonDocument doc;
-    doc["status"] = "busy";
-    doc["task"] = "resumed_dosing";
-    doc["seq"] = pendingDoseSeq; 
-    char buffer[100];
-    serializeJson(doc, buffer);
-    client.publish(TOPIC_STATUS, buffer);
-
+        
     pendingDosePin = -1;
     pendingDoseDuration = 0;
   }

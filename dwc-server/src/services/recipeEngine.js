@@ -79,6 +79,9 @@ class RecipeEngine {
       { potId },
     );
     if (actualWater > 0) {
+      console.log(
+        `🚚 Delivering ${(actualWater * 1.2).toFixed(1)}ml to pot ${potId} (includes 20% line flush buffer)`,
+      );
       await this._deliverToPot(actualWater * 1.2, potId);
       console.log(`✅ Dilution complete`);
       return true;
@@ -175,6 +178,9 @@ class RecipeEngine {
     }
 
     const totalVolume = finalCarrier + totalInjected;
+    console.log(
+      `🚚 Delivering ${(totalVolume * 1.2).toFixed(1)}ml to pot ${potId} (includes 20% line flush buffer)`,
+    );
     await this._deliverToPot(totalVolume * 1.2, potId);
     console.log(`✅ Nutrient batch complete`);
     return true;
@@ -198,6 +204,9 @@ class RecipeEngine {
     const actualAcid = await this.executePumpAndWait(type, topic, doseMl, {
       potId,
     });
+    console.log(
+      `🚚 Delivering ${((250 + actualAcid) * 1.2).toFixed(1)}ml to pot ${potId} (includes 20% line flush buffer)`,
+    );
     await this._deliverToPot((250 + actualAcid) * 1.2, potId);
     console.log(`✅ pH correction complete`);
     return true;
@@ -398,7 +407,7 @@ class RecipeEngine {
       const raw = await fs.readFile(HARDWARE_CONFIG_PATH, "utf8");
       const config = JSON.parse(raw);
       this.peristalticFlowMlPerSec = config.peristaltic_ml_per_sec;
-      this.submersibleFlowMlPerSec = config.submersible_ml_per_sec;
+      this.submersibleFlowMlPerSec = config.delivery_pump_ml_per_sec;
     } catch (err) {
       console.warn("⚠️ Could not load hardware.json, using defaults");
       this.peristalticFlowMlPerSec = 2.0;

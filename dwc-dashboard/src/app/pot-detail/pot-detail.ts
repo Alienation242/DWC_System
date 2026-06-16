@@ -72,6 +72,7 @@ export class PotDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     title: string,
     yTitle: string,
     yTickFormatter?: (value: string | number) => string,
+    minRange: number = 1, // 🟩 NEW: Parameter to enforce a minimum zoom level
   ): ChartConfiguration<'line'>['options'] {
     return {
       responsive: true,
@@ -115,7 +116,14 @@ export class PotDetailComponent implements OnInit, AfterViewInit, OnDestroy {
         },
         y: {
           title: { display: true, text: yTitle, color: 'var(--text)' },
-          grace: '5%',
+          // 🟩 NEW: Force the Y-axis to never zoom in closer than minRange
+          afterDataLimits: (scale) => {
+            if (scale.max - scale.min < minRange) {
+              const mid = (scale.max + scale.min) / 2 || 0;
+              scale.max = mid + minRange / 2;
+              scale.min = mid - minRange / 2;
+            }
+          },
           ticks: {
             color: 'var(--text)',
             callback:
@@ -142,6 +150,7 @@ export class PotDetailComponent implements OnInit, AfterViewInit, OnDestroy {
       const num = typeof value === 'string' ? parseFloat(value) : value;
       return isNaN(num) ? '0' : num.toFixed(2);
     },
+    0.5,
   );
 
   public ecChartOptions = this.getBaseChartOptions(
@@ -151,6 +160,7 @@ export class PotDetailComponent implements OnInit, AfterViewInit, OnDestroy {
       const num = typeof value === 'string' ? parseFloat(value) : value;
       return isNaN(num) ? '0' : Math.round(num).toString();
     },
+    50,
   );
 
   public phChartData: ChartConfiguration<'line'>['data'] = {
@@ -173,7 +183,6 @@ export class PotDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit() {
     this.potId = this.route.snapshot.paramMap.get('id') || 'A';
 
-    // Restore saved time window
     const saved = localStorage.getItem(this.STORAGE_KEY);
     if (saved) {
       const parsed = parseInt(saved, 10);
@@ -200,12 +209,13 @@ export class PotDetailComponent implements OnInit, AfterViewInit, OnDestroy {
       this.socket.onDoseComplete().subscribe((doseData) => {
         const newDose = {
           timestamp: new Date().toISOString(),
-          pumpName: doseData.pumpName || 'System',
+          pumpName: doseData.pumpName || 'System Dose',
           ml: doseData.volume_ml || doseData.ml,
-          status: 'SUCCESS',
+          status: doseData.status === 'dose_complete' ? 'Completed' : 'SUCCESS',
         };
 
         this.recentDoses = [newDose, ...this.recentDoses].slice(0, 20);
+
         this.cdr.detectChanges();
       }),
     );

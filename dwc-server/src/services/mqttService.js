@@ -180,8 +180,18 @@ class MqttService extends EventEmitter {
   }
 
   async handleTelemetry(message, potId) {
+    let payload;
     try {
-      const payload = JSON.parse(message.toString());
+      const rawString = message.toString();
+      try {
+        payload = JSON.parse(rawString);
+      } catch (parseError) {
+        console.warn(
+          `⚠️ Ignored invalid telemetry JSON from pot ${potId}: "${rawString}"`,
+        );
+        return; // Exit silently, don't crash!
+      }
+
       const realPH = await CalibrationService.convertPH(payload.rawPH);
       const realEC = await CalibrationService.convertEC(payload.rawEC);
       await prisma.telemetryLog.create({
