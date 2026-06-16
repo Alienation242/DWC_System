@@ -40,6 +40,8 @@ const char* TOPIC_COMMANDS   = "kevin/dwc/pump_node_1/commands";
 const char* TOPIC_STATUS     = "kevin/dwc/pump_node_1/status";
 const char* TOPIC_CONNECTION = "kevin/dwc/pump_node_1/connection"; 
 
+String globalClientId; // Persistent MQTT ID
+
 unsigned long wifiDisconnectTime = 0;
 const unsigned long WIFI_GRACE_PERIOD_MS = 30000; 
 
@@ -68,7 +70,7 @@ void emergencyStop() {
     if (remaining > 0) {
       pendingDosePin = activeDosingPin;
       pendingDoseDuration = remaining;
-      pendingDoseMl = (remaining / 1000.0) * PERISTALTIC_ML_PER_SEC;
+      pendingDoseMl = (remaining / 1000.0) * currentDoseFlowRate; // Uses the dynamic flow rate
       pendingDoseSeq = currentDoseSeq;
       pendingDoseRequestedMl = currentDoseRequestedMl;
       Serial.printf("💾 Saved pending dose: %lu ms (%.1f ml) seq=%u\n", remaining, pendingDoseMl, pendingDoseSeq);
@@ -125,7 +127,7 @@ void softStartSubmersible() {
 }
 
 // ========== 6. FLOW SEQUENCE CONTROL ==========
-void startDosing(int pin, float ml, const char* pumpName, uint32_t seq) {
+void startDosing(int pin, float ml, const char* pumpName, uint32_t seq, float flowRate) {
   if (isSystemBusy) return;
   if (ml <= 0) return;
   
@@ -133,7 +135,7 @@ void startDosing(int pin, float ml, const char* pumpName, uint32_t seq) {
   currentDoseSeq = seq;
   currentDoseRequestedMl = ml;  
 
-  unsigned long durationMs = (unsigned long)((ml / PERISTALTIC_ML_PER_SEC) * 1000);
+  unsigned long durationMs = (unsigned long)((ml / flowRate) * 1000);
   if (durationMs > MAX_RUNTIME_MS) durationMs = MAX_RUNTIME_MS; 
 
   isSystemBusy = true;
@@ -141,7 +143,7 @@ void startDosing(int pin, float ml, const char* pumpName, uint32_t seq) {
   activeDosingPin = pin;
   actionEndTime = millis() + durationMs;
   currentDoseStartTime = millis();
-  currentDoseFlowRate = PERISTALTIC_ML_PER_SEC;
+  currentDoseFlowRate = flowRate;
   
   digitalWrite(activeDosingPin, HIGH);
   Serial.printf("[PUMP START] %s triggered: %.1f mL for %lu ms (seq=%u)\n", pumpName, ml, durationMs, seq);
@@ -213,13 +215,15 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   float ml = doc["ml"] | 0.0;
   uint32_t seq = doc["seq"] | 0;
 
-  if (strcmp(action, "dose_ph_down") == 0) startDosing(RELAY_PH_DOWN, ml, "pH Down", seq);
-  else if (strcmp(action, "dose_ph_up") == 0) startDosing(RELAY_PH_UP, ml, "pH Up", seq);
-  else if (strcmp(action, "dose_bloom") == 0) startDosing(RELAY_BLOOM, ml, "Bloom", seq);
-  else if (strcmp(action, "dose_micro") == 0) startDosing(RELAY_MICRO, ml, "Micro", seq);
-  else if (strcmp(action, "dose_calmag") == 0) startDosing(RELAY_CALMAG, ml, "CalMag", seq);
-  else if (strcmp(action, "dose_gro_fin_relay") == 0) startDosing(RELAY_GRO_FIN, ml, "Gro/Finisher", seq);
-  else if (strcmp(action, "dose_water") == 0) startDosing(RELAY_RO_WATER, ml, "RO Carrier Water", seq);
+  // Uses proper flow rate for each distinct pump type
+  if (strcmp(action, "dose_ph_down") == 0) startDosing(RELAY_PH_DOWN, ml, "pH Down", seq, PERISTALTIC_ML_PER_SEC);
+  else if (strcmp(action, "dose_ph_up") == 0) startDosing(RELAY_PH_UP, ml, "pH Up", seq, PERISTALTIC_ML_PER_SEC);
+  else if (strcmp(action, "dose_bloom") == 0) startDosing(RELAY_BLOOM, ml, "Bloom", seq, PERISTALTIC_ML_PER_SEC);
+  else if (strcmp(action, "dose_micro") == 0) startDosing(RELAY_MICRO, ml, "Micro", seq, PERISTALTIC_ML_PER_SEC);
+  else if (strcmp(action, "dose_calmag") == 0) startDosing(RELAY_CALMAG, ml, "CalMag", seq, PERISTALTIC_ML_PER_SEC);
+  else if (strcmp(action, "dose_gro_fin_relay") == 0) startDosing(RELAY_GRO_FIN, ml, "Gro/Finisher", seq, PERISTALTIC_ML_PER_SEC);
+  else if (strcmp(action, "dose_water") == 0) startDosing(RELAY_RO_WATER, ml, "RO Carrier Water", seq, SUBMERSIBLE_ML_PER_SEC);
+  
   else if (strcmp(action, "deliver") == 0) {
     const char* target = doc["target"] | "Unknown";
     startDelivery(target, ml);
@@ -239,10 +243,10 @@ void setup_wifi() {
 }
 
 void reconnect() {
-  String clientId = "ESP32_Pump_" + String(random(0xffff), HEX);
   Serial.print("🔄 Attempting MQTT connection...");
   
-  if (client.connect(clientId.c_str(), NULL, NULL, TOPIC_CONNECTION, 1, true, "offline")) {
+  // Uses globalClientId mapped in setup()
+  if (client.connect(globalClientId.c_str(), NULL, NULL, TOPIC_CONNECTION, 1, true, "offline")) {
     Serial.println(" ✅ Connected!");
     client.publish(TOPIC_CONNECTION, "online", true);
     client.subscribe(TOPIC_COMMANDS);
@@ -292,6 +296,9 @@ void reconnect() {
 void setup() {
   Serial.begin(115200);
   randomSeed(analogRead(0));
+  
+  // Creates a persistent ID once per hardware boot
+  globalClientId = "ESP32_Pump_" + String((uint32_t)ESP.getCpuFreqMHz(), HEX) + String(random(0xffff), HEX);
 
   // 1. CLEAR GARBAGE MEMORY ON COLD BOOT
   esp_reset_reason_t reason = esp_reset_reason();
@@ -323,7 +330,10 @@ void setup() {
     activeDosingPin = pendingDosePin;
     actionEndTime = millis() + pendingDoseDuration;
     currentDoseStartTime = millis();
-    currentDoseFlowRate = PERISTALTIC_ML_PER_SEC;
+    
+    // Automatically inherit the correct flow rate on resume
+    currentDoseFlowRate = (pendingDosePin == RELAY_RO_WATER) ? SUBMERSIBLE_ML_PER_SEC : PERISTALTIC_ML_PER_SEC;
+    
     currentDoseSeq = pendingDoseSeq;
     currentDoseRequestedMl = pendingDoseRequestedMl;
     digitalWrite(activeDosingPin, HIGH);

@@ -130,6 +130,10 @@ export class PotDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     };
   }
 
+  private roundTo2(num: number): number {
+    return Math.round(num * 100) / 100;
+  }
+
   public phChartOptions = this.getBaseChartOptions(
     'pH Stabilization Curve',
     'pH',
@@ -262,12 +266,10 @@ export class PotDetailComponent implements OnInit, AfterViewInit, OnDestroy {
 
   pushLivePoint(data: Telemetry) {
     const now = Date.now();
-    const phNum = Number(data.realPH) || 0;
-    const ecNum = Number(data.realEC) || 0;
-    // Always add to full arrays
-    this.fullPhPoints.push({ x: now, y: parseFloat(phNum.toFixed(2)) });
+    const phNum = this.roundTo2(Number(data.realPH) || 0);
+    const ecNum = this.roundTo2(Number(data.realEC) || 0);
+    this.fullPhPoints.push({ x: now, y: phNum });
     this.fullEcPoints.push({ x: now, y: ecNum });
-    // Update display by re-filtering
     this.slideCharts();
   }
 
@@ -295,7 +297,7 @@ export class PotDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.ecChart?.chart) {
       this.ecChart.chart.data.datasets[0].data = this.ecPoints.map((p) => ({
         x: p.x,
-        y: this.showPPM ? p.y * 0.5 : p.y,
+        y: this.showPPM ? this.roundTo2(p.y * 0.5) : p.y,
       }));
       if (this.ecChart.chart.options.scales?.['x']) {
         this.ecChart.chart.options.scales['x'].min = minTime;

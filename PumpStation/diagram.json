@@ -1,588 +1,444 @@
 {
   "version": 1,
-  "author": "Industrial DWC – Pulldown Filtered SSR Layout",
+  "author": "Smart DWC - Clean Bus Layout",
   "editor": "wokwi",
   "parts": [
     {
       "type": "board-esp32-devkit-c-v4",
       "id": "esp",
-      "top": 350,
-      "left": -450,
+      "top": 50,
+      "left": -400,
       "attrs": {}
     },
     {
       "type": "wokwi-vcc",
       "id": "pwr_12v",
-      "top": -150,
-      "left": -400,
-      "attrs": { "voltage": "12" }
+      "top": -250,
+      "left": -100,
+      "attrs": {
+        "voltage": "12"
+      }
     },
     {
       "type": "wokwi-gnd",
       "id": "gnd_12v",
-      "top": 1050,
-      "left": -400,
+      "top": 450,
+      "left": -100,
       "attrs": {}
     },
     {
       "type": "wokwi-text",
       "id": "txt_wall",
-      "top": -180,
-      "left": -430,
-      "attrs": { "text": "12V Main Supply" }
-    },
-    {
-      "type": "wokwi-dc-dc-converter",
-      "id": "buck_5v",
-      "top": -150,
-      "left": -250,
-      "attrs": { "vin": "12", "vout": "5" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "txt_buck",
-      "top": -180,
-      "left": -280,
-      "attrs": { "text": "12V→5V Buck (ESP32)" }
+      "top": -280,
+      "left": -130,
+      "attrs": {
+        "text": "12V Main Supply\n(To Pumps)"
+      }
     },
     {
       "type": "wokwi-relay-module",
       "id": "ssr1",
-      "top": 0,
-      "left": 0,
+      "top": -150,
+      "left": -50,
       "attrs": {}
-    },
-    {
-      "type": "wokwi-relay-module",
-      "id": "ssr2",
-      "top": 100,
-      "left": 0,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-relay-module",
-      "id": "ssr3",
-      "top": 200,
-      "left": 0,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-relay-module",
-      "id": "ssr4",
-      "top": 300,
-      "left": 0,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-relay-module",
-      "id": "ssr5",
-      "top": 400,
-      "left": 0,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-relay-module",
-      "id": "ssr6",
-      "top": 500,
-      "left": 0,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-relay-module",
-      "id": "ssr7",
-      "top": 600,
-      "left": 0,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-relay-module",
-      "id": "ssr8",
-      "top": 700,
-      "left": 0,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-relay-module",
-      "id": "ssr9",
-      "top": 800,
-      "left": 0,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-relay-module",
-      "id": "ssr10",
-      "top": 900,
-      "left": 0,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "pd_1",
-      "top": 30,
-      "left": -100,
-      "attrs": { "value": "10000" }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "pd_2",
-      "top": 130,
-      "left": -100,
-      "attrs": { "value": "10000" }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "pd_3",
-      "top": 230,
-      "left": -100,
-      "attrs": { "value": "10000" }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "pd_4",
-      "top": 330,
-      "left": -100,
-      "attrs": { "value": "10000" }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "pd_5",
-      "top": 430,
-      "left": -100,
-      "attrs": { "value": "10000" }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "pd_6",
-      "top": 530,
-      "left": -100,
-      "attrs": { "value": "10000" }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "pd_7",
-      "top": 630,
-      "left": -100,
-      "attrs": { "value": "10000" }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "pd_8",
-      "top": 730,
-      "left": -100,
-      "attrs": { "value": "10000" }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "pd_9",
-      "top": 830,
-      "left": -100,
-      "attrs": { "value": "10000" }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "pd_10",
-      "top": 930,
-      "left": -100,
-      "attrs": { "value": "10000" }
     },
     {
       "type": "wokwi-led",
       "id": "pump_1",
-      "top": 0,
-      "left": 250,
-      "attrs": { "color": "red" }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "pump_2",
-      "top": 100,
-      "left": 250,
-      "attrs": { "color": "blue" }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "pump_3",
-      "top": 200,
-      "left": 250,
-      "attrs": { "color": "magenta" }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "pump_4",
-      "top": 300,
-      "left": 250,
-      "attrs": { "color": "orange" }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "pump_5",
-      "top": 400,
-      "left": 250,
-      "attrs": { "color": "green" }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "pump_6",
-      "top": 500,
-      "left": 250,
-      "attrs": { "color": "white" }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "pump_7",
-      "top": 600,
-      "left": 250,
-      "attrs": { "color": "cyan" }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "pump_8",
-      "top": 700,
-      "left": 250,
-      "attrs": { "color": "yellow" }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "pump_9",
-      "top": 800,
-      "left": 250,
-      "attrs": { "color": "white" }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "pump_10",
-      "top": 900,
-      "left": 250,
-      "attrs": { "color": "white" }
+      "top": -150,
+      "left": 100,
+      "attrs": {
+        "color": "red"
+      }
     },
     {
       "type": "wokwi-diode",
       "id": "d_1",
-      "top": 20,
-      "left": 350,
+      "top": -130,
+      "left": 170,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-text",
+      "id": "lbl_1",
+      "top": -170,
+      "left": 100,
+      "attrs": {
+        "text": "pH Down"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "ssr2",
+      "top": -50,
+      "left": -50,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pump_2",
+      "top": -50,
+      "left": 100,
+      "attrs": {
+        "color": "blue"
+      }
     },
     {
       "type": "wokwi-diode",
       "id": "d_2",
-      "top": 120,
-      "left": 350,
+      "top": -30,
+      "left": 170,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-text",
+      "id": "lbl_2",
+      "top": -70,
+      "left": 100,
+      "attrs": {
+        "text": "pH Up"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "ssr3",
+      "top": 50,
+      "left": -50,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pump_3",
+      "top": 50,
+      "left": 100,
+      "attrs": {
+        "color": "magenta"
+      }
     },
     {
       "type": "wokwi-diode",
       "id": "d_3",
-      "top": 220,
-      "left": 350,
+      "top": 70,
+      "left": 170,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-text",
+      "id": "lbl_3",
+      "top": 30,
+      "left": 100,
+      "attrs": {
+        "text": "Bloom"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "ssr4",
+      "top": 150,
+      "left": -50,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pump_4",
+      "top": 150,
+      "left": 100,
+      "attrs": {
+        "color": "orange"
+      }
     },
     {
       "type": "wokwi-diode",
       "id": "d_4",
-      "top": 320,
-      "left": 350,
+      "top": 170,
+      "left": 170,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-text",
+      "id": "lbl_4",
+      "top": 130,
+      "left": 100,
+      "attrs": {
+        "text": "Micro"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "ssr5",
+      "top": 250,
+      "left": -50,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pump_5",
+      "top": 250,
+      "left": 100,
+      "attrs": {
+        "color": "green"
+      }
     },
     {
       "type": "wokwi-diode",
       "id": "d_5",
-      "top": 420,
-      "left": 350,
+      "top": 270,
+      "left": 170,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-text",
+      "id": "lbl_5",
+      "top": 230,
+      "left": 100,
+      "attrs": {
+        "text": "Gro/Fin"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "ssr6",
+      "top": -150,
+      "left": 450,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pump_6",
+      "top": -150,
+      "left": 600,
+      "attrs": {
+        "color": "white"
+      }
     },
     {
       "type": "wokwi-diode",
       "id": "d_6",
-      "top": 520,
-      "left": 350,
+      "top": -130,
+      "left": 670,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-text",
+      "id": "lbl_6",
+      "top": -170,
+      "left": 600,
+      "attrs": {
+        "text": "CalMag"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "ssr7",
+      "top": -50,
+      "left": 450,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pump_7",
+      "top": -50,
+      "left": 600,
+      "attrs": {
+        "color": "cyan"
+      }
     },
     {
       "type": "wokwi-diode",
       "id": "d_7",
-      "top": 620,
-      "left": 350,
+      "top": -30,
+      "left": 670,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-text",
+      "id": "lbl_7",
+      "top": -70,
+      "left": 600,
+      "attrs": {
+        "text": "RO Water"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "ssr8",
+      "top": 50,
+      "left": 450,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pump_8",
+      "top": 50,
+      "left": 600,
+      "attrs": {
+        "color": "yellow"
+      }
     },
     {
       "type": "wokwi-diode",
       "id": "d_8",
-      "top": 720,
-      "left": 350,
+      "top": 70,
+      "left": 670,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-text",
+      "id": "lbl_8",
+      "top": 30,
+      "left": 600,
+      "attrs": {
+        "text": "Sub Pump"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "ssr9",
+      "top": 150,
+      "left": 450,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pump_9",
+      "top": 150,
+      "left": 600,
+      "attrs": {
+        "color": "white"
+      }
     },
     {
       "type": "wokwi-diode",
       "id": "d_9",
-      "top": 820,
-      "left": 350,
+      "top": 170,
+      "left": 670,
       "attrs": {}
+    },
+    {
+      "type": "wokwi-text",
+      "id": "lbl_9",
+      "top": 130,
+      "left": 600,
+      "attrs": {
+        "text": "Valve A"
+      }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "ssr10",
+      "top": 250,
+      "left": 450,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pump_10",
+      "top": 250,
+      "left": 600,
+      "attrs": {
+        "color": "white"
+      }
     },
     {
       "type": "wokwi-diode",
       "id": "d_10",
-      "top": 920,
-      "left": 350,
+      "top": 270,
+      "left": 670,
       "attrs": {}
     },
     {
       "type": "wokwi-text",
-      "id": "lbl_led1",
-      "top": -20,
-      "left": 230,
-      "attrs": { "text": "pH Down" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_led2",
-      "top": 80,
-      "left": 230,
-      "attrs": { "text": "pH Up" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_led3",
-      "top": 180,
-      "left": 230,
-      "attrs": { "text": "Bloom" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_led4",
-      "top": 280,
-      "left": 230,
-      "attrs": { "text": "Micro" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_led5",
-      "top": 380,
-      "left": 230,
-      "attrs": { "text": "Gro/Fin" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_led6",
-      "top": 480,
-      "left": 230,
-      "attrs": { "text": "CalMag" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_led7",
-      "top": 580,
-      "left": 230,
-      "attrs": { "text": "RO Water" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_led8",
-      "top": 680,
-      "left": 230,
-      "attrs": { "text": "Sub Pump" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_led9",
-      "top": 780,
-      "left": 230,
-      "attrs": { "text": "Valve A" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_led10",
-      "top": 880,
-      "left": 230,
-      "attrs": { "text": "Valve B" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_gpio1",
-      "top": 10,
-      "left": -70,
-      "attrs": { "text": "GPIO32" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_gpio2",
-      "top": 110,
-      "left": -70,
-      "attrs": { "text": "GPIO33" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_gpio3",
-      "top": 210,
-      "left": -70,
-      "attrs": { "text": "GPIO25" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_gpio4",
-      "top": 310,
-      "left": -70,
-      "attrs": { "text": "GPIO26" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_gpio5",
-      "top": 410,
-      "left": -70,
-      "attrs": { "text": "GPIO27" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_gpio6",
-      "top": 510,
-      "left": -70,
-      "attrs": { "text": "GPIO16" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_gpio7",
-      "top": 610,
-      "left": -70,
-      "attrs": { "text": "GPIO17" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_gpio8",
-      "top": 710,
-      "left": -70,
-      "attrs": { "text": "GPIO18" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_gpio9",
-      "top": 810,
-      "left": -70,
-      "attrs": { "text": "GPIO19" }
-    },
-    {
-      "type": "wokwi-text",
-      "id": "lbl_gpio10",
-      "top": 910,
-      "left": -70,
-      "attrs": { "text": "GPIO21" }
+      "id": "lbl_10",
+      "top": 230,
+      "left": 600,
+      "attrs": {
+        "text": "Valve B"
+      }
     }
   ],
   "connections": [
     ["esp:TX", "$serialMonitor:RX", "", []],
     ["esp:RX", "$serialMonitor:TX", "", []],
-
-    ["pwr_12v:VCC", "buck_5v:VIN", "red", []],
-    ["gnd_12v:GND", "buck_5v:GND", "black", ["h-50", "v-1150"]],
-
-    ["buck_5v:VOUT", "esp:5V", "pink", ["v20", "h-150", "v450"]],
-    ["buck_5v:GND", "esp:GND.1", "black", ["v40", "h-170", "v380"]],
-
-    ["esp:3.3V", "ssr1:VCC", "purple", ["h-60", "v-400", "h400"]],
-    ["ssr1:VCC", "ssr2:VCC", "purple", ["h-20", "v100"]],
-    ["ssr2:VCC", "ssr3:VCC", "purple", ["h-20", "v100"]],
-    ["ssr3:VCC", "ssr4:VCC", "purple", ["h-20", "v100"]],
-    ["ssr4:VCC", "ssr5:VCC", "purple", ["h-20", "v100"]],
-    ["ssr5:VCC", "ssr6:VCC", "purple", ["h-20", "v100"]],
-    ["ssr6:VCC", "ssr7:VCC", "purple", ["h-20", "v100"]],
-    ["ssr7:VCC", "ssr8:VCC", "purple", ["h-20", "v100"]],
-    ["ssr8:VCC", "ssr9:VCC", "purple", ["h-20", "v100"]],
-    ["ssr9:VCC", "ssr10:VCC", "purple", ["h-20", "v100"]],
-
-    ["esp:GND.2", "ssr1:GND", "black", ["h40", "v-350", "h350"]],
-    ["ssr1:GND", "ssr2:GND", "black", ["h-30", "v100"]],
-    ["ssr2:GND", "ssr3:GND", "black", ["h-30", "v100"]],
-    ["ssr3:GND", "ssr4:GND", "black", ["h-30", "v100"]],
-    ["ssr4:GND", "ssr5:GND", "black", ["h-30", "v100"]],
-    ["ssr5:GND", "ssr6:GND", "black", ["h-30", "v100"]],
-    ["ssr6:GND", "ssr7:GND", "black", ["h-30", "v100"]],
-    ["ssr7:GND", "ssr8:GND", "black", ["h-30", "v100"]],
-    ["ssr8:GND", "ssr9:GND", "black", ["h-30", "v100"]],
-    ["ssr9:GND", "ssr10:GND", "black", ["h-30", "v100"]],
-
-    ["esp:32", "ssr1:IN", "green", ["h-20", "v-400", "h400"]],
-    ["esp:33", "ssr2:IN", "green", ["h-30", "v-320", "h400"]],
-    ["esp:25", "ssr3:IN", "green", ["h-40", "v-240", "h400"]],
-    ["esp:26", "ssr4:IN", "green", ["h-50", "v-160", "h400"]],
-    ["esp:27", "ssr5:IN", "green", ["h-60", "v-80", "h400"]],
-    ["esp:16", "ssr6:IN", "green", ["h40", "v-30"]],
-    ["esp:17", "ssr7:IN", "green", ["h50", "v30"]],
-    ["esp:18", "ssr8:IN", "green", ["h60", "v110"]],
-    ["esp:19", "ssr9:IN", "green", ["h70", "v190"]],
-    ["esp:21", "ssr10:IN", "green", ["h80", "v270"]],
-
-    ["pd_1:1", "ssr1:IN", "green", []],
-    ["pd_1:2", "ssr1:GND", "black", []],
-    ["pd_2:1", "ssr2:IN", "green", []],
-    ["pd_2:2", "ssr2:GND", "black", []],
-    ["pd_3:1", "ssr3:IN", "green", []],
-    ["pd_3:2", "ssr3:GND", "black", []],
-    ["pd_4:1", "ssr4:IN", "green", []],
-    ["pd_4:2", "ssr4:GND", "black", []],
-    ["pd_5:1", "ssr5:IN", "green", []],
-    ["pd_5:2", "ssr5:GND", "black", []],
-    ["pd_6:1", "ssr6:IN", "green", []],
-    ["pd_6:2", "ssr6:GND", "black", []],
-    ["pd_7:1", "ssr7:IN", "green", []],
-    ["pd_7:2", "ssr7:GND", "black", []],
-    ["pd_8:1", "ssr8:IN", "green", []],
-    ["pd_8:2", "ssr8:GND", "black", []],
-    ["pd_9:1", "ssr9:IN", "green", []],
-    ["pd_9:2", "ssr9:GND", "black", []],
-    ["pd_10:1", "ssr10:IN", "green", []],
-    ["pd_10:2", "ssr10:GND", "black", []],
-
-    ["pwr_12v:VCC", "pump_1:A", "red", ["v-30", "h620", "v180"]],
-    ["pump_1:A", "pump_2:A", "red", ["h-20", "v100"]],
-    ["pump_2:A", "pump_3:A", "red", ["h-20", "v100"]],
-    ["pump_3:A", "pump_4:A", "red", ["h-20", "v100"]],
-    ["pump_4:A", "pump_5:A", "red", ["h-20", "v100"]],
-    ["pump_5:A", "pump_6:A", "red", ["h-20", "v100"]],
-    ["pump_6:A", "pump_7:A", "red", ["h-20", "v100"]],
-    ["pump_7:A", "pump_8:A", "red", ["h-20", "v100"]],
-    ["pump_8:A", "pump_9:A", "red", ["h-20", "v100"]],
-    ["pump_9:A", "pump_10:A", "red", ["h-20", "v100"]],
-
+    ["esp:GND.2", "gnd_12v:GND", "black", ["h-40", "v300", "h250"]],
+    ["pwr_12v:VCC", "pump_1:A", "red", ["v-20", "h200", "v40"]],
     ["ssr1:NO", "pump_1:C", "orange", []],
-    ["ssr2:NO", "pump_2:C", "orange", []],
-    ["ssr3:NO", "pump_3:C", "orange", []],
-    ["ssr4:NO", "pump_4:C", "orange", []],
-    ["ssr5:NO", "pump_5:C", "orange", []],
-    ["ssr6:NO", "pump_6:C", "orange", []],
-    ["ssr7:NO", "pump_7:C", "orange", []],
-    ["ssr8:NO", "pump_8:C", "orange", []],
-    ["ssr9:NO", "pump_9:C", "orange", []],
-    ["ssr10:NO", "pump_10:C", "orange", []],
-
-    ["ssr1:COM", "ssr2:COM", "black", ["h30", "v100"]],
-    ["ssr2:COM", "ssr3:COM", "black", ["h30", "v100"]],
-    ["ssr3:COM", "ssr4:COM", "black", ["h30", "v100"]],
-    ["ssr4:COM", "ssr5:COM", "black", ["h30", "v100"]],
-    ["ssr5:COM", "ssr6:COM", "black", ["h30", "v100"]],
-    ["ssr6:COM", "ssr7:COM", "black", ["h30", "v100"]],
-    ["ssr7:COM", "ssr8:COM", "black", ["h30", "v100"]],
-    ["ssr8:COM", "ssr9:COM", "black", ["h30", "v100"]],
-    ["ssr9:COM", "ssr10:COM", "black", ["h30", "v100"]],
-    ["ssr10:COM", "gnd_12v:GND", "black", ["h30", "v180", "h-520"]],
-
+    ["ssr1:COM", "gnd_12v:GND", "black", ["h-20", "v630", "h-100"]],
     ["pump_1:C", "d_1:C", "orange", []],
+    ["d_1:A", "gnd_12v:GND", "black", ["h20", "v630", "h-400"]],
+    ["esp:3.3V", "ssr1:VCC", "red", ["h-20", "v-220", "h300"]],
+    ["esp:GND.1", "ssr1:GND", "black", ["h20", "v-230", "h230"]],
+    ["pump_1:A", "pump_2:A", "red", ["h40", "v100", "h-40"]],
+    ["ssr2:NO", "pump_2:C", "orange", []],
+    ["ssr1:COM", "ssr2:COM", "black", ["h-20", "v100", "h20"]],
     ["pump_2:C", "d_2:C", "orange", []],
+    ["d_1:A", "d_2:A", "black", ["h20", "v100", "h-20"]],
+    ["ssr1:VCC", "ssr2:VCC", "red", ["h-30", "v100", "h30"]],
+    ["ssr1:GND", "ssr2:GND", "black", ["h-40", "v100", "h40"]],
+    ["pump_2:A", "pump_3:A", "red", ["h40", "v100", "h-40"]],
+    ["ssr3:NO", "pump_3:C", "orange", []],
+    ["ssr2:COM", "ssr3:COM", "black", ["h-20", "v100", "h20"]],
     ["pump_3:C", "d_3:C", "orange", []],
+    ["d_2:A", "d_3:A", "black", ["h20", "v100", "h-20"]],
+    ["ssr2:VCC", "ssr3:VCC", "red", ["h-30", "v100", "h30"]],
+    ["ssr2:GND", "ssr3:GND", "black", ["h-40", "v100", "h40"]],
+    ["pump_3:A", "pump_4:A", "red", ["h40", "v100", "h-40"]],
+    ["ssr4:NO", "pump_4:C", "orange", []],
+    ["ssr3:COM", "ssr4:COM", "black", ["h-20", "v100", "h20"]],
     ["pump_4:C", "d_4:C", "orange", []],
+    ["d_3:A", "d_4:A", "black", ["h20", "v100", "h-20"]],
+    ["ssr3:VCC", "ssr4:VCC", "red", ["h-30", "v100", "h30"]],
+    ["ssr3:GND", "ssr4:GND", "black", ["h-40", "v100", "h40"]],
+    ["pump_4:A", "pump_5:A", "red", ["h40", "v100", "h-40"]],
+    ["ssr5:NO", "pump_5:C", "orange", []],
+    ["ssr4:COM", "ssr5:COM", "black", ["h-20", "v100", "h20"]],
     ["pump_5:C", "d_5:C", "orange", []],
+    ["d_4:A", "d_5:A", "black", ["h20", "v100", "h-20"]],
+    ["ssr4:VCC", "ssr5:VCC", "red", ["h-30", "v100", "h30"]],
+    ["ssr4:GND", "ssr5:GND", "black", ["h-40", "v100", "h40"]],
+    ["pump_1:A", "pump_6:A", "red", ["v-40", "h500", "v40"]],
+    ["ssr6:NO", "pump_6:C", "orange", []],
+    ["ssr6:COM", "ssr1:COM", "black", ["h-20", "v-40", "h-520", "v40"]],
     ["pump_6:C", "d_6:C", "orange", []],
+    ["d_6:A", "d_1:A", "black", ["h20", "v-60", "h-520", "v60"]],
+    ["ssr1:VCC", "ssr6:VCC", "red", ["h-30", "v-50", "h530", "v50"]],
+    ["ssr1:GND", "ssr6:GND", "black", ["h-40", "v-60", "h550", "v60"]],
+    ["pump_6:A", "pump_7:A", "red", ["h40", "v100", "h-40"]],
+    ["ssr7:NO", "pump_7:C", "orange", []],
+    ["ssr6:COM", "ssr7:COM", "black", ["h-20", "v100", "h20"]],
     ["pump_7:C", "d_7:C", "orange", []],
+    ["d_6:A", "d_7:A", "black", ["h20", "v100", "h-20"]],
+    ["ssr6:VCC", "ssr7:VCC", "red", ["h-30", "v100", "h30"]],
+    ["ssr6:GND", "ssr7:GND", "black", ["h-40", "v100", "h40"]],
+    ["pump_7:A", "pump_8:A", "red", ["h40", "v100", "h-40"]],
+    ["ssr8:NO", "pump_8:C", "orange", []],
+    ["ssr7:COM", "ssr8:COM", "black", ["h-20", "v100", "h20"]],
     ["pump_8:C", "d_8:C", "orange", []],
+    ["d_7:A", "d_8:A", "black", ["h20", "v100", "h-20"]],
+    ["ssr7:VCC", "ssr8:VCC", "red", ["h-30", "v100", "h30"]],
+    ["ssr7:GND", "ssr8:GND", "black", ["h-40", "v100", "h40"]],
+    ["pump_8:A", "pump_9:A", "red", ["h40", "v100", "h-40"]],
+    ["ssr9:NO", "pump_9:C", "orange", []],
+    ["ssr8:COM", "ssr9:COM", "black", ["h-20", "v100", "h20"]],
     ["pump_9:C", "d_9:C", "orange", []],
+    ["d_8:A", "d_9:A", "black", ["h20", "v100", "h-20"]],
+    ["ssr8:VCC", "ssr9:VCC", "red", ["h-30", "v100", "h30"]],
+    ["ssr8:GND", "ssr9:GND", "black", ["h-40", "v100", "h40"]],
+    ["pump_9:A", "pump_10:A", "red", ["h40", "v100", "h-40"]],
+    ["ssr10:NO", "pump_10:C", "orange", []],
+    ["ssr9:COM", "ssr10:COM", "black", ["h-20", "v100", "h20"]],
     ["pump_10:C", "d_10:C", "orange", []],
-
-    ["d_1:A", "d_2:A", "black", ["h30", "v100"]],
-    ["d_2:A", "d_3:A", "black", ["h30", "v100"]],
-    ["d_3:A", "d_4:A", "black", ["h30", "v100"]],
-    ["d_4:A", "d_5:A", "black", ["h30", "v100"]],
-    ["d_5:A", "d_6:A", "black", ["h30", "v100"]],
-    ["d_6:A", "d_7:A", "black", ["h30", "v100"]],
-    ["d_7:A", "d_8:A", "black", ["h30", "v100"]],
-    ["d_8:A", "d_9:A", "black", ["h30", "v100"]],
-    ["d_9:A", "d_10:A", "black", ["h30", "v100"]],
-    ["d_10:A", "gnd_12v:GND", "black", ["h30", "v180", "h-870"]]
+    ["d_9:A", "d_10:A", "black", ["h20", "v100", "h-20"]],
+    ["ssr9:VCC", "ssr10:VCC", "red", ["h-30", "v100", "h30"]],
+    ["ssr9:GND", "ssr10:GND", "black", ["h-40", "v100", "h40"]],
+    ["esp:32", "ssr1:IN", "green", ["h-60", "v-280", "h360"]],
+    ["esp:33", "ssr2:IN", "green", ["h-70", "v-200", "h370"]],
+    ["esp:25", "ssr3:IN", "green", ["h-80", "v-120", "h380"]],
+    ["esp:26", "ssr4:IN", "green", ["h-90", "v-40", "h390"]],
+    ["esp:27", "ssr5:IN", "green", ["h-100", "v40", "h400"]],
+    ["esp:16", "ssr6:IN", "green", ["h40", "v-280", "h800"]],
+    ["esp:17", "ssr7:IN", "green", ["h50", "v-200", "h790"]],
+    ["esp:18", "ssr8:IN", "green", ["h60", "v-120", "h780"]],
+    ["esp:19", "ssr9:IN", "green", ["h70", "v-40", "h770"]],
+    ["esp:21", "ssr10:IN", "green", ["h80", "v40", "h760"]]
   ]
 }
