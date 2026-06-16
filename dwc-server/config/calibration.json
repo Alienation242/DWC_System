@@ -1,16 +1,16 @@
 {
   "pH": {
     "rawLow": 0,
-    "realLow": 1.0,
+    "realLow": 1,
     "rawHigh": 4095,
-    "realHigh": 12.0,
-    "lastCalibration": "2026-06-09T00:00:00.000Z"
+    "realHigh": 12,
+    "lastCalibration": "2026-06-16T12:45:03.429Z"
   },
   "EC": {
     "rawLow": 0,
-    "realLow": 0.0,
+    "realLow": 0,
     "rawHigh": 4095,
-    "realHigh": 8000.0,
-    "lastCalibration": "2026-06-09T00:00:00.000Z"
+    "realHigh": 8000,
+    "lastCalibration": "2026-06-16T12:45:03.429Z"
   }
 }

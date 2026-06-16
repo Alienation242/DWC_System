@@ -1,18 +1,16 @@
-/* Force the app component to fill the screen */
 :host {
   display: flex;
   flex-direction: column;
   height: 100vh;
 }
 
-/* Force the sidenav container to take up all remaining space below the toolbar */
 mat-sidenav-container {
   flex: 1;
   background: transparent;
 }
 
 mat-sidenav {
-  width: 200px; /* Give your sidebar a fixed width */
+  width: 200px;
 }
 
 .spacer {
@@ -39,7 +37,7 @@ mat-sidenav {
 }
 
 .simple-theme-select {
-  background: var(--bg-panel, #2c3e50);
+  background: var(--panel, #2c3e50);
   color: var(--text, white);
   border: 1px solid var(--accent, #45a29e);
   border-radius: 4px;

@@ -5,9 +5,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Federo&family=Josefin+Sans:wght@400;700&display=swap');
 
 :root {
-  /* Rapture Palette */
   --bg: #030d12;
-  --panel: rgba(6, 24, 28, 0.85);
+  --panel: rgba(6, 24, 28, 0.9);
   --text: #e8dcb8;
   --accent: #4cbfa6;
   --muted: #4e6e73;
@@ -15,24 +14,18 @@
   --brass: #aa7c11;
   --brass-light: #dfb953;
   --brass-dark: #4a3504;
-
-  /* Mathematical States for the Engine */
-  --danger: #ff2a00; /* Adam Red */
-  --warning: #ffae00; /* Amber Warning */
-  --muted: #4e6e73;
+  --danger: #ff2a00;
+  --warning: #ffae00;
   --flower: #b366ff;
 
-  --sub-optimal: #4cbfa6; /* Patina */
-  --optimal-veg: #00f0ff; /* Eve Cyan */
-  --optimal-flw: #39ff14; /* Eve Green (Success remains Green/Cyan!) */
-  --text-optimal: #00f0ff;
-
-  /* Background Box States */
-  --bg-panel: rgba(6, 24, 28, 0.9);
-  --bg-danger: #3a0804;
-  --bg-warning: #332000;
-  --bg-optimal-veg: #022b30;
-  --bg-optimal-flw: #04290d;
+  --button-bg: #1b383d;
+  --button-text: var(--brass-light);
+  --stroked-border: var(--brass);
+  --stroked-text: var(--brass-light);
+  --stroked-hover-bg: rgba(223, 185, 83, 0.3);
+  --stroked-active-bg: var(--brass-light);
+  --flat-text: var(--text);
+  --input-bg: rgba(6, 24, 28, 0.8);
 }
 
 body {
@@ -43,7 +36,7 @@ body {
   letter-spacing: 0.5px;
 }
 
-/* Submerging the screen in deep water */
+/* Submerge vignette */
 body::after {
   content: ' ';
   display: block;
@@ -87,50 +80,11 @@ h1 {
   letter-spacing: 3px;
 }
 
-/* ==========================================
-   INPUTS & BADGES
-   ========================================== */
-input[type='text']#plantName {
-  background: linear-gradient(to bottom, #10292e, #06181c) !important;
-  color: var(--brass-light) !important;
-  border: 2px solid var(--brass) !important;
-  border-radius: 4px !important;
-  padding: 6px 24px !important;
-  box-shadow:
-    inset 0 2px 10px #000,
-    0 4px 10px rgba(0, 0, 0, 0.5) !important;
-  font-family: 'Federo', sans-serif !important;
-  font-size: 1.3em !important;
-  letter-spacing: 2px !important;
-  text-transform: uppercase !important;
-}
-
-input[type='text']#plantName:focus {
-  border-color: var(--optimal-veg) !important;
-  box-shadow:
-    inset 0 2px 10px #000,
-    0 0 15px rgba(0, 240, 255, 0.4) !important;
-}
-
-.has-tooltip[style*='color: var(--accent)'] {
-  color: var(--bg) !important;
-  background: linear-gradient(135deg, var(--brass-light), var(--brass)) !important;
-  border: 1px solid var(--brass-dark) !important;
-  border-radius: 50% !important;
-  width: 24px !important;
-  height: 24px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  box-shadow: 0 2px 8px #000 !important;
-  margin-top: -6px !important;
-}
-
-/* ==========================================
-   HEAVY BRASS PANELS
-   ========================================== */
+/* Brass panels */
 .panel,
-.timeline-panel {
+.timeline-panel,
+.mat-mdc-card,
+.mat-drawer-container {
   background-color: var(--panel) !important;
   border: 2px solid var(--brass) !important;
   border-radius: 4px !important;
@@ -138,45 +92,13 @@ input[type='text']#plantName:focus {
     inset 0 0 0 1px #000,
     inset 0 0 20px rgba(0, 0, 0, 0.8),
     0 10px 30px rgba(0, 0, 0, 0.8) !important;
-  position: relative;
 }
 
-/* The Canvas "Porthole" */
-.canvas-container {
-  overflow: visible !important;
-  background: radial-gradient(circle at 50% 50%, #0a2e36 0%, #010608 100%) !important;
-  border: 4px solid var(--brass-dark) !important;
-  border-radius: 50% 50% 4px 4px !important;
-  box-shadow:
-    0 0 0 2px var(--brass),
-    0 15px 40px rgba(0, 0, 0, 0.8) !important;
-}
-
-.canvas-container::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border-radius: 50% 50% 4px 4px !important;
-  box-shadow: inset 0 15px 50px #000 !important;
-  pointer-events: none;
-  z-index: 5;
-}
-
-canvas {
-  border-radius: 50% 50% 4px 4px !important;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-  filter: contrast(1.1) brightness(0.85) !important;
-}
-
-/* ==========================================
-   MECHANICAL CONTROLS & BUTTONS
-   ========================================== */
-.btn-action {
+/* ----- BUTTONS ----- */
+.mat-mdc-raised-button,
+.mat-mdc-unelevated-button,
+.mat-mdc-stroked-button,
+.mat-mdc-button {
   background: linear-gradient(to bottom, #1b383d, #091a1d) !important;
   color: var(--brass-light) !important;
   border: 1px solid var(--brass) !important;
@@ -191,54 +113,71 @@ canvas {
   font-family: 'Federo', sans-serif !important;
   letter-spacing: 1px;
 }
-.btn-action:hover {
+.mat-mdc-raised-button:hover,
+.mat-mdc-unelevated-button:hover,
+.mat-mdc-stroked-button:hover,
+.mat-mdc-button:hover {
   background: linear-gradient(to bottom, var(--brass-light), var(--brass)) !important;
   color: #000 !important;
   text-shadow: none !important;
+  box-shadow: 0 0 15px rgba(223, 185, 83, 0.5) !important;
 }
-.btn-action:active {
+.mat-mdc-raised-button:active,
+.mat-mdc-unelevated-button:active,
+.mat-mdc-stroked-button:active,
+.mat-mdc-button:active {
   box-shadow: inset 0 2px 5px #000 !important;
   transform: translateY(2px) !important;
 }
-.btn-action.play-active {
-  background: linear-gradient(to bottom, #00f0ff, #008899) !important;
+
+/* Primary – same as default */
+.mat-mdc-raised-button.mat-primary,
+.mat-mdc-unelevated-button.mat-primary,
+.mat-mdc-stroked-button.mat-primary {
+  background: linear-gradient(to bottom, #1b383d, #091a1d) !important;
+  border-color: var(--brass) !important;
+  color: var(--brass-light) !important;
+}
+.mat-mdc-raised-button.mat-primary:hover,
+.mat-mdc-unelevated-button.mat-primary:hover,
+.mat-mdc-stroked-button.mat-primary:hover {
+  background: linear-gradient(to bottom, var(--brass-light), var(--brass)) !important;
   color: #000 !important;
-  border-color: #00ffff !important;
-  box-shadow:
-    0 0 15px rgba(0, 240, 255, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
 }
 
-/* Danger Button Override */
-.btn-action[onclick*='clearTimeline'] {
-  color: var(--danger) !important;
+/* Warn (emergency) – red */
+.mat-mdc-raised-button.mat-warn,
+.mat-mdc-unelevated-button.mat-warn,
+.mat-mdc-stroked-button.mat-warn {
   border-color: var(--danger) !important;
+  color: var(--danger) !important;
 }
-.btn-action[onclick*='clearTimeline']:hover {
+.mat-mdc-raised-button.mat-warn:hover,
+.mat-mdc-unelevated-button.mat-warn:hover,
+.mat-mdc-stroked-button.mat-warn:hover {
   background: linear-gradient(to bottom, #ff2a00, #880000) !important;
   color: #fff !important;
-  box-shadow: 0 0 15px rgba(255, 42, 0, 0.5) !important;
+  box-shadow: 0 0 20px rgba(255, 42, 0, 0.5) !important;
 }
 
-/* Phase Toggles */
-.phase-toggle {
-  background: #000 !important;
-  border: 1px solid var(--brass-dark) !important;
-  border-radius: 2px !important;
-  padding: 2px !important;
-  box-shadow: inset 0 2px 5px #000 !important;
-}
+/* ----- PHASE TOGGLES ----- */
 .phase-btn {
   border-radius: 0 !important;
   color: var(--muted) !important;
   font-family: 'Federo', sans-serif !important;
   font-weight: 400 !important;
   letter-spacing: 1px;
+  background: transparent !important;
+  border: 1px solid var(--brass-dark) !important;
+  transition: all 0.2s !important;
+}
+.phase-btn:hover {
+  background-color: rgba(223, 185, 83, 0.2) !important;
 }
 .phase-btn.active#btnVeg {
   background: linear-gradient(to bottom, #1b383d, #091a1d) !important;
-  color: var(--optimal-veg) !important;
-  border: 1px solid var(--optimal-veg) !important;
+  color: #00f0ff !important;
+  border: 1px solid #00f0ff !important;
   box-shadow: 0 0 10px rgba(0, 240, 255, 0.3) !important;
 }
 .phase-btn.active#btnFlower {
@@ -248,355 +187,117 @@ canvas {
   box-shadow: 0 0 10px rgba(179, 102, 255, 0.3) !important;
 }
 
-/* ==========================================
-   GLASS TUBE SLIDERS
-   ========================================== */
-input[type='range'].std-range {
-  border: 1px solid var(--brass-dark) !important;
-  border-radius: 8px !important;
-  background: #000; /* JS Heatmap sits inside this */
-  box-shadow:
-    inset 0 2px 6px #000,
-    0 1px 0 rgba(255, 255, 255, 0.05) !important;
-  height: 14px !important;
-}
-
-/* Brass Valve Thumbs */
-input[type='range']::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  background: radial-gradient(circle at 30% 30%, var(--brass-light), var(--brass-dark)) !important;
-  border: 2px solid #000 !important;
-  width: 20px !important;
-  height: 20px !important;
-  border-radius: 50% !important;
-  box-shadow:
-    0 2px 4px #000,
-    inset 0 0 0 2px var(--brass) !important;
-  cursor: grab !important;
-  margin-top: -4px !important;
-}
-input[type='range']::-webkit-slider-thumb:active {
-  cursor: grabbing !important;
-}
-
-input[type='range']#currentDay::-webkit-slider-thumb {
-  border: 2px solid #000 !important;
-  box-shadow:
-    0 2px 4px #000,
-    inset 0 0 0 2px var(--optimal-veg) !important;
-  width: 24px !important;
-  height: 24px !important;
-  margin-top: -6px !important;
-}
-
-/* Timeline */
-.timeline-track-bg {
-  border: 1px solid #000 !important;
-  border-radius: 8px !important;
-  box-shadow: inset 0 2px 6px #000 !important;
-  height: 14px !important;
-  top: 13px !important;
-}
-.tick-mark {
-  background: var(--brass-dark) !important;
-  width: 2px !important;
-}
-.tick-label {
-  color: var(--brass) !important;
-  font-family: 'Federo', sans-serif !important;
-}
-
-/* ==========================================
-   METRICS & RECIPE BAR
-   ========================================== */
-.metric {
-  background: rgba(0, 0, 0, 0.5) !important;
+/* ----- TEXT INPUTS ----- */
+.mat-mdc-form-field input,
+.mat-mdc-form-field textarea,
+input[type='number'],
+input[type='text'] {
+  background: #000 !important;
   border: 1px solid var(--brass-dark) !important;
   border-radius: 2px !important;
-  padding: 8px !important;
+  color: #00f0ff !important;
   box-shadow: inset 0 2px 5px #000 !important;
 }
-.metric span {
-  color: var(--muted) !important;
-  font-family: 'Federo', sans-serif !important;
-  letter-spacing: 1px;
-}
-.metric strong {
-  color: var(--text) !important;
-  font-size: 1.1em !important;
-}
-
-input[type='number'].editable-metric {
-  background: transparent !important;
-  border: none !important;
-  border-bottom: 2px dashed var(--accent) !important;
-  border-radius: 0 !important;
-  padding: 0 !important;
-  margin-top: 4px !important;
-  color: var(--accent) !important;
-  font-family: 'Josefin Sans', sans-serif !important;
-  box-shadow: none !important;
-}
-input[type='number'].editable-metric:focus {
-  background: rgba(76, 191, 166, 0.1) !important;
-  border-bottom-style: solid !important;
-  outline: none !important;
-}
-
-.recipe-bar {
+.mat-mdc-form-field .mat-mdc-form-field-flex {
   background: #000 !important;
-  border: 2px solid var(--brass-dark) !important;
-  border-radius: 4px !important;
-  box-shadow:
-    inset 0 2px 10px #000,
-    0 1px 0 rgba(255, 255, 255, 0.05) !important;
-  padding: 8px !important;
 }
-.recipe-item {
-  border-radius: 2px !important;
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  background: #000 !important;
+  color: var(--brass-light) !important;
+  border-left: 1px solid var(--brass-dark) !important;
 }
-.tot-ml {
-  background: #051417 !important;
-  color: var(--optimal-veg) !important;
+
+/* ----- SLIDE TOGGLE ----- */
+.mat-mdc-slide-toggle .mdc-switch__track {
+  background-color: #000 !important;
   border: 1px solid var(--brass-dark) !important;
 }
+.mat-mdc-slide-toggle .mdc-switch__handle {
+  background-color: var(--brass) !important;
+}
+.mat-mdc-slide-toggle.mat-checked .mdc-switch__track {
+  background-color: var(--brass-light) !important;
+}
+.mat-mdc-slide-toggle.mat-checked .mdc-switch__handle {
+  background-color: var(--brass-light) !important;
+}
+.mat-mdc-slide-toggle .mdc-label {
+  color: var(--text) !important;
+}
 
-.readout {
-  color: var(--optimal-veg) !important;
-  font-weight: 700 !important;
-  background: #000 !important;
+/* ----- DROPDOWNS ----- */
+.mat-mdc-select-panel {
+  background-color: #030d12 !important;
+  border: 1px solid var(--brass) !important;
+}
+.mat-mdc-option {
+  color: var(--text) !important;
+}
+.mat-mdc-option:hover {
+  background-color: rgba(223, 185, 83, 0.2) !important;
+}
+.mat-mdc-option.mat-active {
+  background-color: var(--brass) !important;
+  color: #000 !important;
+}
+
+/* ----- CHARTS ----- */
+.chart-wrapper canvas {
+  background-color: #010608 !important;
+  border-radius: 4px !important;
+}
+.chart-legend span,
+.chart-legend li {
+  color: var(--text) !important;
+}
+
+/* ----- INTERACTIVE GAUGE HINT (EC/PPM) ----- */
+.gauge-hint {
+  background: var(--brass-light) !important;
+  color: #000 !important;
   padding: 2px 8px !important;
   border-radius: 2px !important;
-  border: 1px solid var(--brass-dark) !important;
+  font-size: 0.7rem !important;
+  box-shadow: 0 0 15px rgba(223, 185, 83, 0.5) !important;
 }
 
-input[type='number'].standard-num,
-.speed-control input {
-  background: #000 !important;
-  border: 1px solid var(--brass-dark) !important;
-  border-radius: 2px !important;
-  color: var(--optimal-veg) !important;
-  box-shadow: inset 0 2px 5px #000 !important;
-}
-
-select.custom-select {
-  background: #000 !important;
-  border: 1px solid var(--brass-dark) !important;
-  border-radius: 2px !important;
-  color: var(--brass-light) !important;
-  box-shadow: inset 0 2px 5px #000 !important;
-  padding: 4px 8px !important;
-  font-family: 'Federo', sans-serif !important;
-  letter-spacing: 1px;
-}
-select.custom-select option {
-  background-color: #030d12 !important;
-  color: var(--brass-light) !important;
-}
-
-hr.divider {
-  border-top: 1px solid var(--brass-dark) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
-  margin: 10px 0 !important;
-}
-
-/* ==========================================
-   LIQUID NEON PULSING
-   ========================================== */
-@keyframes rapture-pulse-error {
-  0%,
-  100% {
-    box-shadow: inset 0 0 20px rgba(255, 42, 0, 0.1);
-    border-color: var(--danger);
-  }
-  50% {
-    box-shadow: inset 0 0 30px rgba(255, 42, 0, 0.4);
-    border-color: #ff5533;
-  }
-}
-@keyframes rapture-pulse-warning {
-  0%,
-  100% {
-    box-shadow: inset 0 0 20px rgba(255, 174, 0, 0.1);
-    border-color: var(--warning);
-  }
-  50% {
-    box-shadow: inset 0 0 30px rgba(255, 174, 0, 0.3);
-    border-color: #ffcc00;
-  }
-}
-@keyframes rapture-pulse-optimal-flw {
-  0%,
-  100% {
-    box-shadow: inset 0 0 20px rgba(57, 255, 20, 0.1);
-    border-color: var(--optimal-flw);
-  }
-  50% {
-    box-shadow: inset 0 0 30px rgba(57, 255, 20, 0.3);
-    border-color: #66ff33;
-  }
-}
-@keyframes rapture-pulse-blue {
-  0%,
-  100% {
-    box-shadow: inset 0 0 20px rgba(0, 240, 255, 0.1);
-    border-color: var(--optimal-veg);
-  }
-  50% {
-    box-shadow: inset 0 0 30px rgba(0, 240, 255, 0.3);
-    border-color: #33ffff;
-  }
-}
-
-.status-box,
-.env-box,
-.bio-phase {
-  border-radius: 2px !important;
-  font-family: 'Josefin Sans', sans-serif !important;
-  text-transform: uppercase;
-  border-width: 1px !important;
-  border-style: solid !important;
-  color: var(--text) !important;
-  animation: none !important;
-  transition: all 0.3s ease;
-  font-weight: 700 !important;
-  padding: 8px 16px !important;
-  background: rgba(0, 0, 0, 0.6) !important;
-}
-
-.env-box {
-  padding: 6px 16px !important;
-}
-.bio-phase {
-  border-color: var(--brass-dark) !important;
-}
-
-/* FIX INVISIBLE INLINE TEXT FROM JS */
-#dayDisplayTop {
-  color: var(--brass-light) !important;
-  font-family: 'Federo', sans-serif !important;
-}
-
-.bio-phase span[style*='#fff'],
-.bio-phase span[style*='rgb(255, 255, 255)'],
-#eodPpmDisplay[style*='#fff'],
-#eodPpmDisplay[style*='rgb(255, 255, 255)'] {
-  color: var(--text) !important;
-}
-#eodPpmDisplay[style*='var(--danger)'] {
-  color: var(--danger) !important;
-  text-shadow: 0 0 8px var(--danger) !important;
-}
-
-/* Intercept JS logic to apply Rapture liquid pulses */
-.status-box[style*='var(--danger)'],
-.env-box[style*='var(--danger)'] {
-  animation: rapture-pulse-error 2s infinite !important;
-  color: #ff5533 !important;
-  text-shadow: 0 0 8px #ff2a00 !important;
-}
-.status-box[style*='var(--warning)'],
-.env-box[style*='var(--warning)'] {
-  animation: rapture-pulse-warning 3s infinite !important;
-  color: #ffcc00 !important;
-  text-shadow: 0 0 8px #ffae00 !important;
-}
-.status-box[style*='var(--optimal-veg)'] {
-  animation: rapture-pulse-blue 4s infinite !important;
-  color: #33ffff !important;
-  text-shadow: 0 0 8px #00f0ff !important;
-}
-.env-box[style*='var(--text-optimal)'] {
-  animation: rapture-pulse-blue 4s infinite !important;
-  color: #33ffff !important;
-  text-shadow: 0 0 8px #00f0ff !important;
-}
-.status-box[style*='var(--optimal-flw)'] {
-  animation: rapture-pulse-optimal-flw 4s infinite !important;
-  color: #66ff33 !important;
-  text-shadow: 0 0 8px #39ff14 !important;
-}
-
-/* ==========================================
-   BRASS NAMEPLATE TOOLTIPS
-   ========================================== */
-.tooltip-text,
-.val-tooltip {
-  background: linear-gradient(135deg, #11262b, #061114) !important;
-  border: 2px solid var(--brass) !important;
-  color: var(--text) !important;
-  box-shadow:
-    inset 0 0 10px #000,
-    0 10px 20px rgba(0, 0, 0, 0.8) !important;
-  border-radius: 4px !important;
-  padding: 14px !important;
-}
-.tooltip-text::after {
-  border-color: var(--brass) transparent transparent transparent !important;
-}
-.tooltip-down::after {
-  border-color: transparent transparent var(--brass) transparent !important;
-}
-.tooltip-right::after {
-  border-color: transparent var(--brass) transparent transparent !important;
-}
-.val-tooltip::after {
-  border-color: transparent var(--brass) transparent transparent !important;
-}
-
-/* Override Inline JS Text for dark backgrounds */
-.val-tooltip strong[style*='#ecf0f1'],
-.val-tooltip strong[style*='rgb(236, 240, 241)'] {
-  color: #bdc3c7 !important;
-}
-.val-tooltip strong[style*='#f1c40f'],
-.val-tooltip strong[style*='rgb(241, 196, 15)'] {
-  color: #f1c40f !important;
-}
-.val-tooltip span[style*='#aaa'],
-.val-tooltip span[style*='rgb(170, 170, 170)'] {
-  color: var(--muted) !important;
-}
-
-.element-legend {
+/* ----- SIDEBAR & TOOLBAR ----- */
+mat-sidenav {
   background: rgba(6, 24, 28, 0.95) !important;
-  border: 2px solid var(--brass-dark) !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important;
-  border-radius: 6px !important;
-
-  /* The Hover Trick: Pulls it left so it overlaps the brass frame and the background */
-  top: -6px !important;
-  left: -6px !important;
-  z-index: 100 !important;
+  border-right: 2px solid var(--brass) !important;
+}
+.active {
+  background-color: rgba(223, 185, 83, 0.2) !important;
+}
+mat-toolbar {
+  background: rgba(6, 24, 28, 0.95) !important;
+  border-bottom: 2px solid var(--brass) !important;
 }
 
-.element-legend h4 {
+/* ----- FORCE TEXT COLOURS (brass/light) ----- */
+.mat-mdc-card,
+.mat-drawer-container,
+.mat-mdc-table,
+td.mat-cell,
+th.mat-header-cell,
+.mat-mdc-card-title,
+.mat-mdc-card-subtitle {
+  color: var(--text) !important;
+}
+.mat-mdc-header-cell {
   color: var(--brass-light) !important;
-  font-family: 'Federo', sans-serif !important;
-  letter-spacing: 1px;
 }
-.element-bar {
-  background: #000 !important;
-  border: 1px solid var(--brass-dark) !important;
-  box-shadow: inset 0 2px 6px #000 !important;
-  border-radius: 2px !important;
-}
-.bar-visuals,
-.bar-hitboxes {
-  border-radius: 2px !important;
-}
-.bar-seg .lbl {
+.mat-mdc-raised-button:active,
+.mat-mdc-unelevated-button:active,
+.mat-mdc-stroked-button:active,
+.mat-mdc-button:active,
+.phase-btn.active {
   color: #000 !important;
-  font-family: 'Josefin Sans', sans-serif !important;
-  font-weight: 800 !important;
-  font-size: 0.8em !important;
-  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.4) !important; /* Embossed text look */
 }
-
-#barCa .lbl,
-#barMg .lbl,
-#barTr .lbl {
-  color: var(--brass-light) !important;
-  text-shadow: 1px 1px 2px #000 !important;
-  border-radius: 2px !important;
+.mat-mdc-option.mat-active {
+  color: #000 !important;
+}
+.gauge-hint {
+  color: #000 !important;
 }

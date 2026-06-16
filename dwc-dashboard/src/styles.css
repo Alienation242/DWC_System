@@ -1,4 +1,10 @@
-/* Force the background and text to respect the active theme globally */
+/* ==========================================
+   GLOBAL RESET & BASE
+   ========================================== */
+* {
+  box-sizing: border-box;
+}
+
 html,
 body {
   margin: 0;
@@ -8,7 +14,175 @@ body {
   font-family: var(--font-primary, 'Courier New', monospace);
 }
 
-/* Strip the default white backgrounds from Material components */
+/* ==========================================
+   MATERIAL OVERRIDES (for all themes)
+   ========================================== */
+
+/* Dropdown panels */
+.mat-mdc-select-panel,
+.mat-mdc-menu-panel {
+  background-color: var(--panel, #ffffff) !important;
+  border: 1px solid var(--muted, #ccc) !important;
+  border-radius: 4px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  color: var(--text, #333) !important;
+  z-index: 1000 !important;
+}
+
+.mat-mdc-option {
+  color: var(--text, #333) !important;
+  background: transparent !important;
+}
+.mat-mdc-option:hover {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+.mat-mdc-option.mat-active {
+  background: var(--accent, #0284c7) !important;
+  color: #fff !important;
+}
+
+/* Buttons */
+.mat-mdc-raised-button,
+.mat-mdc-unelevated-button {
+  background-color: var(--button-bg, var(--accent, #0284c7)) !important;
+  color: var(--button-text, #ffffff) !important;
+  border: none !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+  transition:
+    filter 0.2s,
+    box-shadow 0.2s !important;
+}
+.mat-mdc-raised-button:hover,
+.mat-mdc-unelevated-button:hover {
+  filter: brightness(1.2) !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+}
+.mat-mdc-raised-button:active,
+.mat-mdc-unelevated-button:active {
+  filter: brightness(0.8) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4) !important;
+}
+
+.mat-mdc-stroked-button {
+  background-color: transparent !important;
+  color: var(--stroked-text, var(--accent, #0284c7)) !important;
+  border: 1px solid var(--stroked-border, var(--accent, #0284c7)) !important;
+  transition:
+    background 0.2s,
+    color 0.2s !important;
+}
+.mat-mdc-stroked-button:hover {
+  background-color: var(--stroked-hover-bg, rgba(0, 0, 0, 0.05)) !important;
+}
+.mat-mdc-stroked-button:active {
+  background-color: var(--stroked-active-bg, var(--accent, #0284c7)) !important;
+  color: #fff !important;
+}
+
+.mat-mdc-button {
+  color: var(--flat-text, var(--text, #333)) !important;
+  transition: background 0.2s !important;
+}
+.mat-mdc-button:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+.mat-mdc-button:active {
+  background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Colour variants */
+.mat-mdc-raised-button.mat-primary,
+.mat-mdc-unelevated-button.mat-primary {
+  background-color: var(--accent, #0284c7) !important;
+  color: #fff !important;
+}
+.mat-mdc-raised-button.mat-warn,
+.mat-mdc-unelevated-button.mat-warn {
+  background-color: var(--danger, #dc2626) !important;
+  color: #fff !important;
+}
+.mat-mdc-raised-button.mat-accent,
+.mat-mdc-unelevated-button.mat-accent {
+  background-color: var(--warning, #f59e0b) !important;
+  color: #000 !important;
+}
+
+.mat-mdc-stroked-button.mat-primary {
+  border-color: var(--accent, #0284c7) !important;
+  color: var(--accent, #0284c7) !important;
+}
+.mat-mdc-stroked-button.mat-warn {
+  border-color: var(--danger, #dc2626) !important;
+  color: var(--danger, #dc2626) !important;
+}
+.mat-mdc-stroked-button.mat-primary:hover {
+  background-color: rgba(2, 132, 199, 0.1) !important;
+}
+.mat-mdc-stroked-button.mat-warn:hover {
+  background-color: rgba(220, 38, 38, 0.1) !important;
+}
+
+/* Slide toggle (watchdog) */
+.mat-mdc-slide-toggle .mdc-switch__track {
+  background-color: var(--muted, #888) !important;
+}
+.mat-mdc-slide-toggle .mdc-switch__handle {
+  background-color: var(--panel, #fff) !important;
+}
+.mat-mdc-slide-toggle.mat-checked .mdc-switch__track {
+  background-color: var(--accent, #0284c7) !important;
+}
+.mat-mdc-slide-toggle.mat-checked .mdc-switch__handle {
+  background-color: #fff !important;
+}
+.mat-mdc-slide-toggle .mdc-switch__handle::after {
+  background: var(--text, #fff) !important;
+}
+.mat-mdc-slide-toggle.mat-checked .mdc-switch__handle::after {
+  background: var(--text, #fff) !important;
+}
+/* Label */
+.mat-mdc-slide-toggle .mdc-label {
+  color: var(--text, #333) !important;
+}
+
+/* Text inputs (number, text) */
+.mat-mdc-form-field input,
+.mat-mdc-form-field textarea,
+input[type='number'],
+input[type='text'] {
+  color: var(--text, #333) !important;
+  background: var(--input-bg, rgba(255, 255, 255, 0.8)) !important;
+  border-radius: 4px !important;
+  padding: 4px 8px !important;
+  border: 1px solid var(--muted, #ccc) !important;
+}
+.mat-mdc-form-field .mat-mdc-form-field-flex {
+  background: var(--input-bg, rgba(255, 255, 255, 0.8)) !important;
+}
+/* Number spinners */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  opacity: 1 !important;
+  background: var(--panel, #fff) !important;
+}
+
+/* Theme selector */
+.simple-theme-select {
+  background-color: var(--panel, rgba(0, 0, 0, 0.2)) !important;
+  color: var(--text, #fff) !important;
+  border: 1px solid var(--muted, #555) !important;
+  border-radius: 4px !important;
+  padding: 4px 8px !important;
+  font-family: inherit !important;
+  cursor: pointer !important;
+}
+.simple-theme-select option {
+  background-color: var(--panel, #2c3e50) !important;
+  color: var(--text, #fff) !important;
+}
+
+/* Cards & tables */
 .mat-mdc-card,
 .mat-drawer-container,
 .mat-drawer {
@@ -30,13 +204,22 @@ th.mat-header-cell {
   font-family: var(--font-primary, inherit) !important;
 }
 
-/* Add a hover effect to table rows for readability */
 .mat-mdc-row:hover {
   background-color: rgba(255, 255, 255, 0.05) !important;
 }
 
-/* Make the sidebar look like a distinct control panel */
 mat-sidenav {
   border-right: 1px solid var(--muted, rgba(255, 255, 255, 0.1)) !important;
   background: linear-gradient(90deg, rgba(0, 0, 0, 0.2) 0%, transparent 100%);
+}
+
+/* Interactive gauge hint (EC/PPM toggle) */
+.gauge-hint {
+  background: var(--accent, #4cbfa6) !important;
+  color: var(--bg, #000) !important;
+  padding: 2px 8px !important;
+  border-radius: 4px !important;
+  font-size: 0.65rem !important;
+  font-weight: bold !important;
+  box-shadow: 0 0 10px var(--accent, rgba(0, 0, 0, 0.3)) !important;
 }
