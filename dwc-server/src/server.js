@@ -149,6 +149,7 @@ async function runEngineLoop() {
 // ------------------------------------------------------------
 const PORT = process.env.PORT || 3000;
 
+/* istanbul ignore if */
 if (require.main === module) {
   autoSeed()
     .then(async () => {
