@@ -32,6 +32,7 @@ describe("MqttService", () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    jest.useRealTimers();
     if (service && service.client && typeof service.client.end === "function") {
       service.client.end(true);
     }
@@ -402,11 +403,16 @@ describe("MqttService", () => {
   test("waitForDevice triggers timeout and rejects (lines 90-93)", async () => {
     service.deviceRegistry.pump_node_1 = "offline";
     jest.useFakeTimers();
+
+    // 🟩 Ensure we clear the constructor's initial timeout
+    jest.runOnlyPendingTimers();
+
     const promise = service.waitForDevice("pump_node_1", 100);
     jest.advanceTimersByTime(100);
     await expect(promise).rejects.toThrow(
       "TIMEOUT: pump_node_1 did not reconnect.",
     );
+
     jest.useRealTimers();
   });
 

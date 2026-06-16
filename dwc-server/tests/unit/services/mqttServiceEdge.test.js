@@ -178,4 +178,36 @@ describe("MqttService Edge Cases", () => {
     await expect(promise).resolves.toBeUndefined();
     jest.useRealTimers();
   });
+
+  test("nodeNameToPotId fallback handles malformed names", () => {
+    const messageHandler = mockClient.on.mock.calls.find(
+      (c) => c[0] === "message",
+    )[1];
+    // A node name without a number should trigger the `if (!match) return "A";` fallback
+    messageHandler("kevin/dwc/bad_node_name/connection", "online");
+    expect(service.deviceRegistry["bad_node_name"]).toBe("online");
+  });
+
+  test("waitForDevice resolves successfully via network_change event", async () => {
+    service.deviceRegistry.pump_node_1 = "offline";
+    const promise = service.waitForDevice("pump_node_1", 5000);
+    // Simulate the device coming online while the promise is waiting
+    service.emit("network_change", "pump_node_1", "online");
+    await expect(promise).resolves.toBeUndefined();
+  });
+
+  test("waitForBusy ignores status update if expectedSeq mismatches on resumed_dosing", async () => {
+    service.hardwareStatus = "idle";
+    const promise = service.waitForBusy(100, 10);
+
+    // Simulate an incoming status message that doesn't match the expected sequence
+    service.emit("hardware_status", {
+      status: "busy",
+      task: "resumed_dosing",
+      seq: 99,
+    });
+
+    // It should ignore that message and eventually timeout
+    await expect(promise).rejects.toThrow("TIMEOUT: Pump did not become busy");
+  });
 });

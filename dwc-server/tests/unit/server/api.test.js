@@ -67,6 +67,26 @@ describe("Server API Endpoints", () => {
     expect(res.statusCode).toBe(500);
   });
 
+  test("POST /api/calibration updates ONLY pH", async () => {
+    CalibrationService.load.mockResolvedValue({ pH: {}, EC: {} });
+    CalibrationService.save.mockResolvedValue();
+    const res = await request(app)
+      .post("/api/calibration")
+      .send({ pH: { rawLow: 0 } });
+    expect(res.statusCode).toBe(200);
+    expect(CalibrationService.save).toHaveBeenCalled();
+  });
+
+  test("POST /api/calibration updates ONLY EC", async () => {
+    CalibrationService.load.mockResolvedValue({ pH: {}, EC: {} });
+    CalibrationService.save.mockResolvedValue();
+    const res = await request(app)
+      .post("/api/calibration")
+      .send({ EC: { rawHigh: 4095 } });
+    expect(res.statusCode).toBe(200);
+    expect(CalibrationService.save).toHaveBeenCalled();
+  });
+
   // ========== Nutrient Configuration ==========
   test("GET /api/nutrient-config returns profile", async () => {
     const mockProfile = { carrierFluid: "Water", carrierVolumeMl: 500 };
@@ -205,6 +225,14 @@ describe("Server API Endpoints", () => {
   test("GET /api/system/target handles error", async () => {
     mockPrisma.systemState.findFirst.mockRejectedValue(new Error("DB error"));
     const res = await request(app).get("/api/system/target");
+    expect(res.statusCode).toBe(500);
+  });
+
+  test("POST /api/system/override handles database failure", async () => {
+    mockPrisma.systemState.update.mockRejectedValue(new Error("DB Error"));
+    const res = await request(app)
+      .post("/api/system/override")
+      .send({ mode: "AUTO" });
     expect(res.statusCode).toBe(500);
   });
 

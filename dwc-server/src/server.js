@@ -37,6 +37,7 @@ async function autoSeed() {
     const raw = await fs.readFile(configPath, "utf8");
     systemConfig = JSON.parse(raw);
   } catch {
+    /* istanbul ignore next */
     console.warn(
       "⚠️ Could not load system.json, using default watchdog limits",
     );

@@ -349,4 +349,32 @@ describe("RecipeEngine - Edge Cases & Uncovered Branches", () => {
     expect(stopSpy).toHaveBeenCalledWith("stop", 0, "None", expect.any(Number));
     expect(engine.isTicking).toBe(false);
   });
+
+  test("_handleEcDeficit handles missing hardware config error", async () => {
+    jest
+      .spyOn(engine, "_ensureHardwareConfig")
+      .mockRejectedValue(new Error("Config load fail"));
+    const result = await engine._handleEcDeficit(
+      1000,
+      500,
+      "veg",
+      1,
+      10,
+      {},
+      5000,
+      "A",
+    );
+    expect(result).toBe(false);
+  });
+
+  test("executePumpAndWait throws when max retries are exceeded", async () => {
+    mqtt.waitForBusy.mockRejectedValue(new Error("OFFLINE_INTERRUPT"));
+    // Expect it to fail after retries exhausted
+    await expect(
+      engine.executePumpAndWait("Water", "dose_water", 100, {
+        potId: "A",
+        maxRetries: 1,
+      }),
+    ).rejects.toThrow("Failed to dose");
+  });
 });
