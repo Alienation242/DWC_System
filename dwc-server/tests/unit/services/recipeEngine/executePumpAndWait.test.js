@@ -13,7 +13,8 @@ jest.spyOn(fs, "readFile").mockImplementation((path) => {
     return Promise.resolve(
       JSON.stringify({
         peristaltic_ml_per_sec: 200.0,
-        submersible_ml_per_sec: 50.0,
+        carrier_water_ml_per_sec: 50.0,
+        delivery_pump_ml_per_sec: 50.0,
         safety_buffer_ms: 30000,
       }),
     );

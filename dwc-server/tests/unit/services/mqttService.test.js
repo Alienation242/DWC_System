@@ -178,17 +178,18 @@ describe("MqttService", () => {
     await expect(promise).resolves.toBeUndefined();
   });
 
-  test("handleTelemetry logs error on invalid JSON", () => {
+  test("handleTelemetry logs warning on invalid JSON and exits gracefully", async () => {
     const message = { toString: () => "{invalid json}" };
-    const consoleErrorSpy = jest
-      .spyOn(console, "error")
+    const consoleWarnSpy = jest
+      .spyOn(console, "warn")
       .mockImplementation(() => {});
-    service.handleTelemetry(message);
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "❌ Failed to process telemetry:",
-      expect.any(String),
+
+    await service.handleTelemetry(message, "A");
+
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      `⚠️ Ignored invalid telemetry JSON from pot A: "{invalid json}"`,
     );
-    consoleErrorSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
   });
 
   test("emits network_change when connection topic received", (done) => {
@@ -233,19 +234,6 @@ describe("MqttService", () => {
       });
     });
     await expect(promise).resolves.toBeUndefined();
-  });
-
-  test("handleTelemetry logs error on invalid JSON", () => {
-    const message = { toString: () => "{invalid json}" };
-    const consoleErrorSpy = jest
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    service.handleTelemetry(message);
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "❌ Failed to process telemetry:",
-      expect.any(String),
-    );
-    consoleErrorSpy.mockRestore();
   });
 
   test("waitForBusy removes listener on timeout", async () => {
