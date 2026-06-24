@@ -32,9 +32,22 @@ const int RELAY_VALVE_C   = 22;
 const int RELAY_VALVE_D   = 23;
 
 // ========== 2. NETWORK CONFIGURATION ==========
-const char* ssid = "Wokwi-GUEST";               
-const char* password = "";
-const char* mqtt_server = "test.mosquitto.org";  
+// These values are now securely injected at compile time from secrets.ini
+#ifndef WIFI_SSID
+#define WIFI_SSID "YOUR_WIFI_SSID_HERE"
+#endif
+
+#ifndef WIFI_PASSWORD
+#define WIFI_PASSWORD "YOUR_WIFI_PASSWORD_HERE"
+#endif
+
+#ifndef MQTT_SERVER
+#define MQTT_SERVER "test.mosquitto.org"
+#endif
+
+const char* ssid = WIFI_SSID;               
+const char* password = WIFI_PASSWORD;
+const char* mqtt_server = MQTT_SERVER;  
 
 const char* TOPIC_COMMANDS   = "kevin/dwc/pump_node_1/commands";
 const char* TOPIC_STATUS     = "kevin/dwc/pump_node_1/status";
@@ -216,7 +229,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   float ml = doc["ml"] | 0.0;
   uint32_t seq = doc["seq"] | 0;
 
-  // Uses proper flow rate for each distinct pump type
   if (strcmp(action, "dose_ph_down") == 0) startDosing(RELAY_PH_DOWN, ml, "pH Down", seq, PERISTALTIC_ML_PER_SEC);
   else if (strcmp(action, "dose_ph_up") == 0) startDosing(RELAY_PH_UP, ml, "pH Up", seq, PERISTALTIC_ML_PER_SEC);
   else if (strcmp(action, "dose_bloom") == 0) startDosing(RELAY_BLOOM, ml, "Bloom", seq, PERISTALTIC_ML_PER_SEC);
@@ -241,12 +253,13 @@ void setup_wifi() {
     Serial.print(".");
   }
   Serial.println(" ✅ Wi-Fi connected");
+  Serial.print("📡 IP Address: ");
+  Serial.println(WiFi.localIP());
 }
 
 void reconnect() {
   Serial.print("🔄 Attempting MQTT connection...");
   
-  // Uses globalClientId mapped in setup()
   if (client.connect(globalClientId.c_str(), NULL, NULL, TOPIC_CONNECTION, 1, true, "offline")) {
     Serial.println(" ✅ Connected!");
     client.publish(TOPIC_CONNECTION, "online", true);
@@ -298,7 +311,6 @@ void setup() {
   Serial.begin(115200);
   randomSeed(analogRead(0));
   
-  // Creates a persistent ID once per hardware boot
   globalClientId = "ESP32_Pump_" + String((uint32_t)ESP.getCpuFreqMHz(), HEX) + String(random(0xffff), HEX);
 
   // 1. CLEAR GARBAGE MEMORY ON COLD BOOT
@@ -319,11 +331,11 @@ void setup() {
                          RELAY_VALVE_A, RELAY_VALVE_B, RELAY_VALVE_C, RELAY_VALVE_D};
                          
   for (int pin : allPins) {
-    digitalWrite(pin, LOW); // Force the pin register to LOW first
-    pinMode(pin, OUTPUT);   // THEN connect the pin to the output driver
+    digitalWrite(pin, LOW); 
+    pinMode(pin, OUTPUT);   
   }
 
-// 3. RESUME INTERRUPTED DOSE (if valid)
+  // 3. RESUME INTERRUPTED DOSE (if valid)
   if (pendingDosePin != -1 && pendingDoseDuration > 0) {
     Serial.printf("🔁 Resuming interrupted dose: pin %d for %lu ms (%.1f ml) seq=%u\n", 
                   pendingDosePin, pendingDoseDuration, pendingDoseMl, pendingDoseSeq);
@@ -349,7 +361,7 @@ void setup() {
 }
 
 void loop() {
-  delay(10); // Short delay to prevent slow clockspeeds
+  delay(10); 
   if (!client.connected()) {
     if (wifiDisconnectTime == 0) {
       wifiDisconnectTime = millis();
